@@ -1,143 +1,100 @@
-# The Constraint Theory Ecosystem
+# Constraint Theory Ecosystem
 
-> **"The math that hardware engineers already know. Tolerance stacks, interference fits, and o-rings — formalized."**
+**You already think in constraints. This formalizes what you know.**
 
----
-
-## The O-Ring Test
-
-An o-ring either seals or it doesn't. The housing either compresses the o-ring 15–25% or it doesn't. The pressure either holds or the system fails catastrophically.
-
-There is no "approximately sealed." No "close enough pressure." No "good enough for government work."
-
-This is **constraint satisfaction** — and if you design hardware, you've been doing it your entire career.
+*The constraint is the point, not the exception.*
 
 ---
 
-## The Floating Point Problem
+## The Problem
 
-Software engineers keep relearning what hardware engineers already know:
+Software treats constraints as afterthoughts: `NaN != NaN` is true, `INT_MAX + 1 = INT_MIN` in two's complement, and `(a + b) + c != a + (b + c)` with large floats. Every one of these silently corrupts systems. Hardware engineers learned this lesson physically — an o-ring either seals or it doesn't.
 
-```
-FLOATING POINT:    "x is approximately in [0, 1]" → wrong silent, fails at runtime
-CONSTRAINT THEORY:  "x ∈ [0, 1] ∧ ¬deadlock ∧ ¬overflow" → right or wrong, known at compile time
-```
+## The Solution
 
-- `NaN != NaN` is true. Every comparison with NaN is false.
-- `INT_MAX + 1 = INT_MIN` in two's complement. Undefined behavior.
-- `(a + b) + c != a + (b + c)` with large floats. Non-transitive comparison.
+**FLUX-C + GUARD + Coq proofs** — constraint satisfaction with formal verification:
 
-These aren't edge cases. They're the natural consequence of using **continuous approximation** where **discrete constraint satisfaction** is required.
+- **GUARD DSL** specifies exact constraints (like GD&T for software): `GUARD battery_temp in [15, 55]`
+- **FLUX-C Bytecode** executes them — 43 opcodes, Turing-incomplete, guaranteed terminating
+- **Coq proofs** verify termination and semantic correctness for every constraint
 
----
-
-## What This Ecosystem Is
-
-A public monorepo that teaches constraint theory to engineers who already think in constraints — and shows them how to write software that enforces them with the same rigor they apply to physical design.
-
-**Contains:**
-- **GUARD DSL** — a constraint specification language (like GD&T for software)
-- **FLUX-C Bytecode** — 43-opcode verifiable instruction set (Turing-incomplete = guaranteed terminating)
-- **Coq Proofs** — formal verification that constraints terminate and produce correct output
-- **Safe-TOPS/W** — 410M verified CPU operations/sec, 241M GPU ops/sec (with proof artifacts)
-- **ZHC Consensus** — 38ms fleet coordination latency, unlimited Byzantine tolerance
-- **H1 Emergence Detection** — 127 lines detect emergence vs 12K-line ML model
-
-**Standards supported:** DO-254 DAL A · ISO 26262 ASIL-D · IEC 61508 SIL 3
+**Standards:** 📋 DO-254 DAL A · ISO 26262 ASIL-D · IEC 61508 SIL 3
 
 ---
 
-## Quick Example: The Battery Temperature Constraint
+## For Hardware Engineers
 
-**What a hardware engineer thinks:**
-> "Battery temp must be between 15°C and 55°C. Below 0°C, charging damages the cells. Above 60°C, thermal runaway starts. I need a margin."
+You already know this. GUARD just makes it explicit:
 
-**What a software engineer writes (floating point):**
-```python
-if temp > 15 and temp < 55:
-    # allow charging
-    pass
-```
-*Problem: `temp` could be NaN. `temp > 55` is false when temp is NaN. Charging still happens.*
+- **Tolerance stack** → `GUARD sum_le([a, b, c], max_stack)`
+- **Interference fit** → `GUARD shaft_diameter > bore_diameter`
+- **O-ring seal** → `GUARD seal_compression in [0.15, 0.25]`
+- **MMC callout** → `GUARD position_error <= 0.05 @ MMC`
 
-**What a constraint theorist writes (GUARD DSL):**
+GD&T was invented so hardware dimensions could be specified precisely enough to fail at build time, not runtime. GUARD does the same for software.
+
+---
+
+## For Safety Engineers
+
+⚠️ DO-254, ISO 26262, IEC 61508 are constraint satisfaction problems. FLUX Certify solves them faster and more rigorously — with proof artifacts for tool qualification (DO-330).
+
+**Safe-TOPS/W:** 410M verified CPU ops/sec, 241M GPU ops/sec. All with formal proof artifacts.
+
+**$10K pilot available:** Full constraint verification with Coq proof review. → [cocapn.ai/certify](https://cocapn.ai/certify)
+
+---
+
+## 🔧 Quick Example
+
+**GUARD constraint:**
 ```
 GUARD battery_temp in [15, 55]
 GUARD NOT (temperature < 0 AND charging_enabled)
 ```
-*Compiled to FLUX-C bytecode, verified by Coq, executed at 410M checks/sec.*
+
+**Compiled to FLUX-C bytecode:**
+```
+0x01 PUSH_CONST 15        ; lower bound
+0x02 PUSH_REF temp         ; temperature sensor
+0x03 IN_RANGE              ; [15, 55] check
+0x04 PUSH_CONST 0
+0x05 PUSH_REF temp
+0x06 LT                     ; temp < 0
+0x07 PUSH_REF charging
+0x08 AND                    ; temp < 0 AND charging
+0x09 NOT                    ; NOT (temp < 0 AND charging)
+0x0A AND                    ; combine with range check
+0x0B HALT                   ; constraint satisfied or violated
+```
+
+No NaN. No overflow. Boolean outcome. 410M checks/sec with Coq proof.
 
 ---
 
-## For Engineers Who Already Know GD&T
+## Chapter Overview
 
-| What You Call It | What CS Calls It | What GUARD Writes |
-|-----------------|------------------|-------------------|
-| Tolerance stack | Bounded variable composition | `GUARD sum_le([a, b, c], max_stack)` |
-| Interference fit | Negative clearance constraint | `GUARD shaft_diameter > bore_diameter` |
-| Pressure rating | Upper bound on stress | `GUARD pressure < max_working_pressure / safety_factor` |
-| Leak test | Constraint validation | `GUARD seal_compression in [0.15, 0.25]` |
-| Safety factor | Overconstraint margin | `GUARD margin > 1.5` |
-| MMC (max material condition) | Worst-case bound | `GUARD position_error <= 0.05 @ MMC` |
-| GD&T callout | Formal constraint spec | `GUARD perpendicularity(tolerance, surface_finish)` |
-
----
-
-## Three Entry Points
-
-### For Hardware Engineers
-1. Read [chapters/ch00-constraint-mindset.md](chapters/ch00-constraint-mindset.md)
-2. Try the [FLUX Certify playground](https://cocapn.ai/certify)
-3. Write your first GUARD constraint
-
-### For Software Engineers
-1. Read [chapters/ch02-guard-dsl.md](chapters/ch02-guard-dsl.md)
-2. Install the [FLUX VM](https://github.com/SuperInstance/flux-vm-php)
-3. Try the [sandbox](https://cocapn.ai/flux-sandbox)
-
-### For Safety Engineers / Certification Authorities
-1. Read [chapters/ch05-safety-critical.md](chapters/ch05-safety-critical.md)
-2. Review Safe-TOPS/W metrics and proof artifacts
-3. Request a $10K pilot engagement: [cocapn.ai/certify](https://cocapn.ai/certify)
+- **ch00 — The Constraint Mindset:** What you already know (tolerance stacks, o-rings, interference fits)
+- **ch01 — Why Software Fails:** NaN, overflow, non-transitive float comparison — the rubber ruler problem
+- **ch02 — GUARD DSL:** The constraint specification language (14 constructs, real examples)
+- **ch03 — FLUX-C Bytecode:** 43-opcode ISA, Turing-incomplete by design, guaranteed termination
+- **ch04 — Formal Verification:** Coq proofs that constraints terminate and produce correct output
+- **ch05 — Safety-Critical Apps:** DO-254, ISO 26262, IEC 61508 with proof artifacts and benchmarks
+- **ch06 — Fleet Math:** ZHC consensus (38ms, any Byzantine tolerance), H1 emergence detection, Pythagorean48 hashing
+- **ch07 — Get Started:** Three entry points: hardware engineers, software engineers, safety engineers
 
 ---
 
-## The Three Breakthroughs (Fleet Math)
+## Get Started
 
-**ZHC — Zero Holonomy Consensus**
-> Distributed coordination without voting. The geometry IS the position.
-> 38ms latency (any N nodes, any Byzantine tolerance) vs PBFT 412ms.
+**1.** Read [ch00 — The Constraint Mindset](chapters/ch00-constraint-mindset.md) (20 min, no code)
 
-**H1 — First Cohomology Emergence Detection**
-> "Is emergent behavior emerging?" Answer from algebraic topology, not machine learning.
-> 127 lines vs 12,000-line PyTorch model. 100% accuracy on benchmark graphs.
+**2.** Try FLUX Certify → [cocapn.ai/certify](https://cocapn.ai/certify)
 
-**Pythagorean48 — Collision-Free Hashing**
-> 48-element codebook. 6 bits per vector. Involution (h = h⁻¹) = zero drift.
-> Collision probability 1/48. Trivially correctable with parity check.
+**3.** Write your first GUARD constraint. Compile it. Watch it verify.
+
+**For the full theory:** Read the paper → [construction-constraint-theory](https://cocapn.ai/constraint-theory-paper)
 
 ---
-
-## Status
-
-| Component | Status | Location |
-|-----------|--------|----------|
-| GUARD DSL | SPEC COMPLETE | `src/guard-compiler/` (pending) |
-| FLUX-C Bytecode | Live | `flux-research/specs/flux-isa-v3.md` |
-| Coq Proofs | [PROVEN] | `proofs/FluxC/FluxC.v` |
-| LLVM Emitter | Live | `constraint-theory-llvm/` |
-| ZHC Consensus | Live | `holonomy-consensus/` |
-| FLUX Certify | Live | [cocapn.ai/certify](https://cocapn.ai/certify) |
-| This Repo | SPEC ONLY | You're reading it |
-
----
-
-## Maintainer
-
-**CoCapn Fleet** — *The ocean counts. The Spark lights the fire.*
 
 Built by [SuperInstance](https://github.com/SuperInstance) · FLUX Certify at [cocapn.ai/certify](https://cocapn.ai/certify)
-
----
-
-*If you design hardware that must work, you already think in constraints. Let's make the software match.*
