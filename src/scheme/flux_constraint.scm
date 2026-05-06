@@ -1,0 +1,58 @@
+;; FLUX Constraint Engine — Scheme (R7RS)
+;; Pure INT8 saturated constraint checking. Zero dependencies.
+
+(define (saturate v)
+  (max -127 (min 127 v)))
+
+(define (check constraints value)
+  (let ((val (saturate value)))
+    (let loop ((cs constraints) (i 0) (em 0) (vlo 0) (vhi 0) (vc 0))
+      (if (null? cs)
+          (let ((sev (cond ((= vc 0) 'pass)
+                           ((<= vc (quotient (length constraints) 4)) 'caution)
+                           ((<= vc (quotient (length constraints) 2)) 'warning)
+                           (else 'critical))))
+            (list (cons 'error_mask em)
+                  (cons 'severity sev)
+                  (cons 'violated_lo vlo)
+                  (cons 'violated_hi vhi)
+                  (cons 'violated_count vc)
+                  (cons 'passed (= vc 0))))
+          (let* ((c (car cs))
+                 (lo (saturate (car c)))
+                 (hi (saturate (cadr c)))
+                 (lo-fail (< val lo))
+                 (hi-fail (> val hi))
+                 (bit (arithmetic-shift 1 i)))
+            (loop (cdr cs) (+ i 1)
+                  (if (or lo-fail hi-fail) (bitwise-ior em bit) em)
+                  (if lo-fail (bitwise-ior vlo bit) vlo)
+                  (if hi-fail (bitwise-ior vhi bit) vhi)
+                  (if (or lo-fail hi-fail) (+ vc 1) vc)))))))
+
+(define presets
+  '((aviation ((-55 70 "cabin_temp_C") (75 101 "cabin_pressure_kPa") (0 100 "fuel_flow_pct") (60 100 "hydraulic_pct")))
+    (medical ((36 38 "body_temp_C") (60 100 "heart_rate_bpm") (95 100 "spo2_pct") (80 120 "bp_systolic_mmHg")))
+    (maritime ((-2 35 "sea_temp_C") (50 100 "hull_integrity_pct") (0 50 "wave_height_m") (0 80 "wind_speed_kn")))
+    (automotive ((-40 60 "battery_temp_C") (0 100 "soc_pct") (0 100 "charge_rate_pct") (20 80 "cabin_temp_C")))
+    (energy ((49 51 "grid_freq_Hz_x10") (95 105 "voltage_pct") (0 80 "transformer_temp_C") (0 100 "line_load_pct")))))
+
+;; Self-test
+(display "FLUX Constraint Engine — Scheme\n")
+(display "================================\n")
+(assert (= (saturate -128) -127))
+(assert (= (saturate 128) 127))
+(display "  saturate: OK\n")
+
+(let ((r (check '((0 100 "test")) 50)))
+  (assert (cdr (assoc 'passed r))))
+(let ((r (check '((0 100 "test")) 150)))
+  (assert (not (cdr (assoc 'passed r)))))
+(display "  check: OK\n")
+
+(let ((r (check '((0 10) (0 10) (0 10) (0 10)) 50)))
+  (assert (eq? (cdr (assoc 'severity r)) 'critical))
+  (assert (= (cdr (assoc 'violated_count r)) 4)))
+(display "  severity: OK\n")
+
+(display "  All tests pass\n")
