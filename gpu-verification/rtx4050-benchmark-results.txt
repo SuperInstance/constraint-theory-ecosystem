@@ -1,0 +1,58 @@
+╔══════════════════════════════════════════════════════╗
+║  FLUX Production Kernel v2 — Validation Suite        ║
+║  INT8 flat bounds + saturation + error masks         ║
+╚══════════════════════════════════════════════════════╝
+
+═══ Differential Tests ═══
+  Differential test: 10000000 sensors, 8 constraints
+    Result: 0 mismatches / 10000000 inputs (0.000000%)
+    Stats: GPU(0,742,89640,9909618) CPU(0,742,89640,9909618) ✓
+  Differential test: 50000000 sensors, 4 constraints
+    Result: 0 mismatches / 50000000 inputs (0.000000%)
+    Stats: GPU(9863,269481,2773327,46947329) CPU(9863,269481,2773327,46947329) ✓
+  Differential test: 1000000 sensors, 1 constraints
+    Result: 0 mismatches / 1000000 inputs (0.000000%)
+    Stats: GPU(98497,0,0,901503) CPU(98497,0,0,901503) ✓
+  Saturation edge cases:
+    [0] val=-127: GPU(mask=255,sev=3) CPU(mask=255,sev=3) ✓
+    [1] val=127: GPU(mask=255,sev=3) CPU(mask=255,sev=3) ✓
+    [2] val=0: GPU(mask=0,sev=0) CPU(mask=0,sev=0) ✓
+    [3] val=-1: GPU(mask=0,sev=0) CPU(mask=0,sev=0) ✓
+    [4] val=1: GPU(mask=0,sev=0) CPU(mask=0,sev=0) ✓
+    [5] val=126: GPU(mask=255,sev=3) CPU(mask=255,sev=3) ✓
+    [6] val=-126: GPU(mask=255,sev=3) CPU(mask=255,sev=3) ✓
+    [7] val=127: GPU(mask=255,sev=3) CPU(mask=255,sev=3) ✓
+
+═══ Throughput Benchmarks ═══
+
+  Throughput: 10000000 sensors × 8 constraints × 1000 iterations
+    Total time: 1158.21 ms (1000 iters)
+    Per-iteration: 1.1582 ms
+    Throughput: 69.07 B constraints/sec
+    CUDA Graph: 9.48 ms total, 8435.00 B constraints/sec
+    Graph speedup: 122.1x
+
+  Throughput: 50000000 sensors × 4 constraints × 100 iterations
+    Total time: 560.93 ms (100 iters)
+    Per-iteration: 5.6093 ms
+    Throughput: 35.66 B constraints/sec
+    CUDA Graph: 1.45 ms total, 13792.95 B constraints/sec
+    Graph speedup: 386.8x
+
+  Throughput: 10000000 sensors × 1 constraints × 1000 iterations
+    Total time: 1124.73 ms (1000 iters)
+    Per-iteration: 1.1247 ms
+    Throughput: 8.89 B constraints/sec
+    CUDA Graph: 7.42 ms total, 1347.73 B constraints/sec
+    Graph speedup: 151.6x
+
+╔══════════════════════════════════════════════════════╗
+║  Results                                             ║
+╠══════════════════════════════════════════════════════╣
+║  Differential (10M × 8c):  PASS ✓                       ║
+║  Differential (50M × 4c):  PASS ✓                       ║
+║  Differential (1M × 1c):   PASS ✓                       ║
+║  Saturation edge cases:    PASS ✓                       ║
+╚══════════════════════════════════════════════════════╝
+
+Overall: ALL TESTS PASS ✓
