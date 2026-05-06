@@ -1,0 +1,20 @@
+{
+  "name": "@superinstance/flux-constraint",
+  "version": "1.0.0",
+  "description": "INT8 saturated constraint checking for safety-critical systems. Zero dependencies. 62 billion checks/sec on GPU.",
+  "main": "flux-constraint.js",
+  "types": "flux-constraint.d.ts",
+  "files": ["flux-constraint.js", "flux-constraint.d.ts", "README.md"],
+  "scripts": {
+    "test": "node --test flux-constraint.test.js",
+    "bench": "node -e \"const {FluxConstraint}=require('./flux-constraint'); const fc=FluxConstraint.fromPreset('aviation'); const b=fc.benchmark(); console.log(b.rateM+'M checks/sec')\""
+  },
+  "keywords": ["constraint","safety","int8","formal-verification","do-178c","iso-26262","embedded","real-time","gpu"],
+  "author": "SuperInstance",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SuperInstance/constraint-theory-ecosystem"
+  },
+  "homepage": "https://superinstance.github.io/constraint-theory-ecosystem"
+}
