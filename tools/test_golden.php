@@ -11,7 +11,7 @@ foreach ($vectors as $v) {
     $exp = $v['expected'];
     if ($r->error_mask !== $exp['error_mask'] || $r->isPass() !== $exp['passed']) {
         $mismatches++;
-        if ($mismatches <= 5) echo "MISMATCH #{$v['id']}\n";
+        if ($mismatches <= 5) echo "MISMATCH #{$v['id']}: value={$v['value']} got mask={$r->error_mask} expected={$exp['error_mask']}\n";
     }
 }
 
