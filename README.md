@@ -85,40 +85,44 @@ Certification     ← DO-178C DAL A, ISO 26262 ASIL-D, IEC 61508 SIL 3
 ```
 constraint-theory-ecosystem/
 ├── README.md                    ← You are here
+├── QUICKSTART.md                ← 15-min tutorial (7 languages)
+├── CONTRIBUTING.md              ← How to contribute
+├── Dockerfile                   ← Deploy REST API in Docker
+├── .github/workflows/ci.yml     ← CI pipeline
 ├── docs/
-│   ├── physical-engineers-guide.md   ← START HERE (15 min read)
-│   ├── specs/                        ← Formal specifications
-│   │   └── int8-saturation-semantics.md
-│   ├── papers/                       ← Research papers
-│   │   └── emsoft-flux-complete.md
-│   └── blog/                         ← Blog series (5 posts, 8,635 words)
-├── chapters/                         ← Book chapters (Oracle1)
-│   ├── ch00-constraint-mindset.md
-│   ├── ch01-why-software-fails.md
-│   ├── ch02-guard-dsl.md
-│   ├── ch03-flux-c-bytecode.md
-│   ├── ch04-formal-verification.md
-│   ├── ch05-safety-critical.md
-│   ├── ch06-fleet-math.md
-│   ├── ch07-getting-started.md
-│   └── ch08-gpu-architecture.md
+│   ├── physical-engineers-guide.md   ← START HERE (O-rings, tolerance stacks)
+│   ├── constraint-theory-formalized.md ← Theory paper (4,453 words)
+│   ├── examples.md                   ← 6 worked examples (O-ring→SCRAM)
+│   ├── standards-mapping.md           ← DO-178C / ISO 26262 / IEC compliance
+│   ├── api-reference.md              ← REST API specification
+│   ├── specs/
+│   │   ├── int8-saturation-semantics.md
+│   │   └── safe-tops-per-watt.md
+│   ├── papers/
+│   │   └── emsoft-flux-complete.md    ← EMSOFT paper (8,366 words)
+│   ├── blog/                         ← 5 posts (8,635 words)
+│   └── chapters/
+│       └── ch09-embedded-runtime.md
+├── chapters/                         ← Book chapters (ch00-ch11)
+│   ├── ch00-constraint-mindset.md     ← Oracle1: What you already know
+│   ├── ch02-guard-dsl.md             ← Oracle1: The constraint language
+│   ├── ch08-gpu-architecture.md      ← Forgemaster: 62.2B c/s explained
+│   └── ch10-industry-deep-dives.md   ← 10 industries, 248 constraints
 ├── src/
 │   ├── cuda/                         ← Production CUDA kernels
-│   │   ├── flux_production_v2.cu
-│   │   └── bench_production_v2.cu
-│   ├── embedded/                     ← ARM Cortex-R bare-metal
-│   │   ├── flux_embedded.h
-│   │   └── test_flux_embedded.c
-│   └── rust/
-│       └── bytecode_validator.rs     ← Security: 42 opcodes, 5-phase
+│   ├── embedded/                     ← ARM Cortex-R (42 opcodes, 16 tests)
+│   ├── rust/                         ← Rust integration (571 lines, 16 tests)
+│   ├── python/                       ← Python + REST API server
+│   ├── js/                           ← JavaScript (zero deps)
+│   └── php/                          ← PHP (class + tests)
 ├── proofs/
-│   └── coq/
-│       └── flux_saturation_coq.v     ← 7 Coq proofs
+│   └── coq/                          ← 15 Coq theorems
 ├── constraints/                      ← 10 industry libraries (248 total)
-├── tools/
-│   ├── safe_tops_per_watt.py         ← Benchmark tool
-│   └── playground.html               ← Browser demo (zero deps)
-└── experiments/                      ← 54 GPU experiments
+├── experiments/                      ← 54 GPU experiments
+└── tools/
+    ├── safe_tops_per_watt.py         ← Benchmark tool
+    ├── playground.html               ← Browser demo
+    └── rest-api-guide.md             ← Deploy guide
 ```
 
 ---
