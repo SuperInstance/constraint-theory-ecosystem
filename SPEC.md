@@ -1,321 +1,457 @@
-# Constraint Theory Ecosystem — SPEC
+<!-- Authored by Oracle1 🔮 (Cocapn Fleet), merged by Forgemaster ⚒️ -->
 
-> **TWO-LINE PITCH:** "The math that hardware engineers already know.
-> Tolerance stacks, interference fits, and o-rings — formalized."
+# Constraint Theory Ecosystem — SPEC.md
+
+**Repository:** `SuperInstance/constraint-theory-ecosystem`  
+**Status:** Draft  
+**Version:** 0.1.0  
+**Date:** 2026-05-05  
+**Audience:** Professional engineers (hardware, mechanical, aerospace, automotive) who think in constraints but haven't seen the formal theory.
 
 ---
 
-## What Is This?
+## 1. What This Repository Is
 
-A public monorepo (`SuperInstance/constraint-theory-ecosystem`) that teaches constraint theory to professional engineers who already think in constraints — but haven't seen the formal framework.
+Constraint Theory is the formal study of **exact boolean constraint satisfaction** — the mathematical framework that makes "provably correct or provably wrong" a property of software, not just hardware.
 
-**Audience:** Hardware engineers, mechanical engineers, aerospace engineers, automotive engineers, safety-critical systems developers. People who understand:
+Hardware engineers already think in constraints:
+- Tolerance stacks: "Does the total stack fit within the envelope?"
+- Interference fits: "Will these parts actually contact under all manufacturing variations?"
+- O-ring compressions: "Is the gland filled to 70-85% under all thermal conditions?"
+- Pressure ratings: "Does the rated burst pressure exceed maximum operating pressure by 4×?"
+- GD&T: "Is this feature within its tolerance zone?"
+
+Software gets none of this. Floating point gives "approximately correct." NaN gives silent failure. Integer overflow wraps. The result: systems that fail catastrophically at design time, not in the field where it's too late.
+
+**This repository is the canonical home for Constraint Theory research, the GUARD DSL language, the FLUX-C bytecode VM, formal verification artifacts, and safety-critical application guides — all in one place, zero-shot-readable.**
+
+---
+
+## 2. Two-Line Pitch
+
+> **"The math that hardware engineers already know. Tolerance stacks, interference fits, and O-rings — formalized."**
+
+> **"Hardware engineers think in constraints. Software doesn't. This repo fixes that."**
+
+---
+
+## 3. Core Insight to Communicate in Chapter 0
+
+The repository leads with this contrast:
+
+| | **Floating Point** | **Constraint Theory** |
+|---|---|---|
+| **Result** | Approximately correct | Provably correct or provably wrong |
+| **Failure mode** | Silent (NaN, drift, wrap) | Loud (violation detected at design time) |
+| **Example** | 0.1 + 0.2 ≠ 0.3 | `battery_temp ∈ [15, 55]` ✓ or ⊗ |
+| **Engineering** | "Close enough" | "Fits the tolerance zone or it doesn't" |
+
+**The connection:** GUARD DSL is like a **digital GD&T spec for software** — a formal language that specifies exact acceptable zones for every variable, compiles to verified bytecode, and produces proof certificates that auditors can independently verify.
+
+---
+
+## 4. Audience Definition
+
+### Primary: Hardware Engineers (Mechanical, Aerospace, Automotive)
+
+They understand:
 - GD&T (Geometric Dimensioning and Tolerancing)
-- Interference fits vs clearance fits
-- Pressure ratings and burst pressures
-- Leak/no-leak decisions with o-rings
-- "Did the tolerance stack accumulate to failure?"
+- Tolerance stacks ( Worst Case, RSS, Monte Carlo )
+- Interference fits, press fits, clearance fits
+- Pressure vessel ratings (burst, working, test pressure)
+- O-ring gland design (compression, squeeze, backfill)
+- Leak/no-leak decisions (helium leak testing, hermetic seals)
 
-**What they DON'T know:** That this mindset is a complete formal system — with a proof theory, a compilation target, and a certification pathway — that rivals formal methods at a fraction of the complexity.
+They do **NOT** need to understand:
+- Floating point arithmetic (this is the problem)
+- Lambda calculus (not relevant)
+- Machine learning (not relevant to constraint satisfaction)
 
----
+### Secondary: Software Engineers Building Safety-Critical Systems
 
-## The Core Insight
+They understand:
+- DO-254, ISO 26262, IEC 61508
+- Formal verification (or need to learn why it matters)
+- Type systems, compilers, bytecode VMs
 
-```
-FLOATING POINT:    "x is approximately in [0, 1]" → wrong silent, fails at runtime
-CONSTRAINT THEORY:  "x ∈ [0, 1] ∧ ¬deadlock ∧ ¬overflow" → right or wrong, known at compile time
-```
+### Tertiary: Certification Authorities and Safety Auditors
 
-Hardware engineers understand this intuitively: an o-ring either seals or it doesn't. The tolerance stack either closes or it doesn't. There's no "close enough" in the physical world.
-
-Software engineers keep relearning this the hard way: NaN propagates silently, integer overflow wraps around, floating point comparison is non-transitive. These aren't bugs — they're the natural consequence of using continuous approximation where discrete constraint satisfaction is required.
-
-**GUARD DSL is to constraints what GD&T is to dimensions.** A precise notation that says exactly what must be true, in a form that machines can verify, compile, and prove.
-
----
-
-## Chapter Outline
-
-### Chapter 0 — The Constraint Mindset (What You Already Know)
-
-**Premise:** Every physical engineer is already a constraint theorist. They just don't know it yet.
-
-**Covers:**
-- Tolerance stacks: given A, B, C dimensions with tolerances ±0.005, does the stack fit in 10.000 ±0.020?
-- Interference fits: press a 10.000mm shaft into a 9.995mm hole (5μm interference). Will it slip or hold?
-- O-ring seals: squeeze the o-ring 15-25%, compress the housing, check the沟-深度 ratio. Either it leaks or it doesn't.
-- Pressure ratings: burst pressure vs working pressure vs test pressure. Safety factor is a constraint satisfaction.
-
-**Key analogy:** Constraint theory is to software what GD&T is to hardware. It makes implicit physical knowledge explicit and machine-verifiable.
-
-**Who it's for:** Skeptical engineers who need to see their own expertise reflected before they'll engage with the abstract notation.
-
-**No code here.** Physical examples only.
+They need:
+- Proof certificates they can independently verify
+- Evidence packages that map to regulatory work products
+- Artifacts that require no faith — only inspection
 
 ---
 
-### Chapter 1 — Why Software Gets Constraints Wrong
+## 5. Repository Name
 
-**Premise:** Every software engineer has a story where floating point burned them.
+**`SuperInstance/constraint-theory-ecosystem`**
 
-**Covers:**
-- NaN: `NaN != NaN` is true. Every comparison with NaN is false. NaN propagates.
-- Integer overflow: `INT_MAX + 1 = INT_MIN` in two's complement. Undefined behavior in C.
-- Floating point non-transitivity: `(a + b) + c != a + (b + c)` with large floats
-- Race conditions in multi-threaded code: correctness depends on scheduling, not just logic
-- The "works on my machine" problem: constraint violations that only appear in production
+Alternative considered: `no-gaps` (too obscure), `guard-lang` (narrows scope), `flux-constraint-theory` (conflates with FLUX brand).
 
-**Key analogy:** Floating point is like measuring with a rubber ruler. Sometimes it works. Sometimes it doesn't. You don't know until the system fails.
-
-**What constraint theory provides:** Boolean constraint satisfaction. Either the constraint is satisfied or it isn't. No "approximately correct." No NaN. No overflow wraps.
-
-**Code examples:** Show broken float code, then show the GUARD equivalent.
+The `ecosystem` suffix is intentional: this is not a single tool or paper. It is a complete ecosystem spanning theory, language, VM, verification, and applications.
 
 ---
 
-### Chapter 2 — GUARD DSL: A Language for Exact Constraints
-
-**Premise:** GD&T gives hardware a language to specify dimensions precisely. GUARD does the same for software constraints.
-
-**Covers:**
-- 14 GUARD constructs: [EQ|NE|GT|LT|GTE|LTE] × [SUM|PROD|ALL|ANY|NONE] + VEC + MAT + GRAPH
-- Constraint composition: how to build complex constraints from simple ones
-- Real examples: battery temperature [15°C, 55°C], sonar frequency [10kHz, 50kHz] when depth < 100m
-- GUARD syntax vs mathematical notation vs code
-
-**Example:**
-```
-GD&T:     10.000 (+0.020 / -0.000)
-GUARD:    shaft_diameter ∈ [9.999, 10.020](mm)
-Code:     GUARD range_check(shaft_diameter, 9.999, 10.020)
-
-GD&T:     Position tolerance ø0.05 at MAX MATERIAL CONDITION
-GUARD:    position_error <= 0.05 @ MMC
-Code:     GUARD lte(position_error, 0.05)
-```
-
-**Compilation targets:** GUARD → FLUX-C bytecode → LLVM IR → AVX-512 / CUDA
-
-**Code examples:** Real GUARD constraints with CDCL trace output showing what compiles to.
-
----
-
-### Chapter 3 — FLUX-C Bytecode: How Constraints Execute
-
-**Premise:** FLUX-C is the machine code of constraint execution. 43 opcodes. Turing-incomplete. Guaranteed terminating.
-
-**Covers:**
-- FLUX-C instruction set (43 opcodes in 6 categories)
-- Why Turing-incomplete is a feature: it guarantees termination
-- The `fluxc_terminates` Coq theorem: every FLUX-C program terminates
-- FLUX-C vs LLVM IR: one is verifiable, one is fast
-- The compilation pipeline: GUARD → FLUX-C → LLVM IR (.ll) → native code
-
-**Key facts:**
-- 43 opcodes total (vs x86_64's ~3,000)
-- Each opcode is verifiable: termination + correctness
-- No dynamic dispatch, no jumps to arbitrary addresses, no self-modifying code
-
-**Code examples:** FLUX-C bytecode output from the GUARD compiler, with commentary.
-
----
-
-### Chapter 4 — Formal Verification: Coq Proofs That Constraints Terminate
-
-**Premise:** Coq proofs are intimidating until you see what they actually prove. It's not "all bugs are eliminated." It's "this specific constraint system terminates and produces correct output."
-
-**Covers:**
-- What Coq actually proves for FLUX-C: termination + semantic correctness
-- FLUXC.v: the Coq development (key theorems, no full proofs in the spec)
-- The extraction theorem: Coq → FLUX-C → compiled code is semantically preserving
-- Safe-TOPS/W: measured verified operations per second with formal proof (410M CPU, 241M GPU)
-
-**Key theorem:**
-```coq
-Theorem fluxc_terminates:
-  forall (c: constraint) (b: bindings),
-    exists result, step_star c b result.
-```
-"The constraint system (c) with bindings (b) always reaches a result." No loops, no infinite recursion, no undefined behavior.
-
-**What it does NOT prove:** That the constraints encode the right property. That's the engineer's job (Chapter 2). Coq proves that what you specified is what runs.
-
-**Comparison:** Traditional testing vs formal verification. Testing finds presence of bugs. Formal verification proves their absence.
-
----
-
-### Chapter 5 — Safety-Critical Applications
-
-**Premise:** DO-254, ISO 26262, and IEC 61508 are already constraint satisfaction problems. FLUX Certify solves them faster and more rigorously.
-
-**Covers:**
-
-**DO-254 DAL A (Aerospace):**
-- FPGA/GPU safety-critical functions
-- Tool Qualification (DO-330): FLUX Certify as a COTS tool
-- MC/DC coverage requirements
-- Example: GPU constraint verification for autopilot (6 weeks → 4 hours)
-
-**ISO 26262 ASIL-D (Automotive):**
-- ASIL decomposition: ASIL-D → ASIL-B + ASIL-B via hardware redundancy
-- Safety goals vs technical safety requirements
-- Example: Mobileye EyeQ6H ASIL-D GPU constraint verification
-
-**IEC 61508 SIL 3 (Industrial):**
-- Architectural constraints: HFT=1, SFF>90%
-- Hardware fault tolerance
-- Example: FPGA safety function constraint verification
-
-**Standards badges to display:** DO-254 DAL A, ISO 26262 ASIL-D, IEC 61508 SIL 3
-
-**Safe-TOPS/W:** 410M ops/sec on CPU, 241M ops/sec on GPU — all with formal proof artifacts for certification.
-
----
-
-### Chapter 6 — The Fleet Math: ZHC, H1, Pythagorean48
-
-**Premise:** Three mathematical breakthroughs that make fleet coordination provably correct at scale.
-
-**ZHC — Zero Holonomy Consensus:**
-- Problem: Byzantine fault tolerance requires O(N²) messages (PBFT) or 1/3 honesty threshold
-- Solution: Zero Holonomy Consensus — local constraint satisfaction → global consensus
-- Result: 38ms latency (any N nodes, any Byzantine tolerance) vs PBFT 412ms
-- Physical analogy: a rod in a hydraulic cylinder doesn't need to ask the pump where it is. The geometry IS the position.
-
-**H1 — First Cohomology Emergence Detection:**
-- Problem: Emergent behavior in multi-agent systems is invisible to individual agent inspection
-- Solution: emergence_score(G) = dim H₁(G, Q). Non-zero H₁ = graph has non-trivial cycles = emergent behavior.
-- Result: 127-line FLUX-C implementation (cohomology.rs) detects emergence as reliably as 12,000-line PyTorch model
-- Physical analogy: a feedback loop in a hydraulic circuit creates behavior neither component exhibits alone
-
-**Pythagorean48 — Collision-Free Hashing:**
-- Problem: Distributed agents need to agree on data identity without centralized coordination
-- Solution: 48-element codebook, 6 bits per vector. Involution (h = h⁻¹) means zero drift after unlimited hops.
-- Collision probability: P = 1/48 (birthday paradox — trivially correctable with parity check)
-- Physical analogy: two identical gears in a gear train. They have the same tooth count. The system is still determinate.
-
----
-
-### Chapter 7 — How to Get Started
-
-**Three entry points for three audiences:**
-
-**For hardware engineers:**
-1. Read Chapter 0 (The Constraint Mindset)
-2. Try the FLUX Certify playground: cocapn.ai/certify
-3. Write your first GUARD constraint
-4. Download the proof artifact
-
-**For software engineers:**
-1. Read Chapters 1-2 (Why Software Gets It Wrong + GUARD DSL)
-2. Install the FLUX VM: `pip install flux-vm-php` or use the TypeScript implementation
-3. Try the sandbox: cocapn.ai/flux-sandbox
-4. Read FLUX ISA v3.0 spec for the full bytecode reference
-
-**For safety engineers / certification authorities:**
-1. Read Chapter 5 (Safety-Critical Applications)
-2. Review Safe-TOPS/W metrics and proof artifacts
-3. Request a pilot engagement: cocapn.ai/certify
-4. Review Coq proofs: FluxC/FluxC.v on GitHub
-
----
-
-## Existing Assets to Integrate
-
-| Asset | Where It's From | Maps To |
-|-------|----------------|---------|
-| FLUX ISA v3.0 spec | flux-research/specs/flux-isa-v3.md | Chapter 2-3 |
-| FLUX-C Coq proofs | flux-certify/FluxC/FluxC.v | Chapter 4 |
-| constraint-theory-llvm | constraint-theory-llvm crate | Chapter 3-4 |
-| holonomy-consensus | holonomy-consensus crate | Chapter 6 |
-| Safe-TOPS/W benchmarks | Chapter 9 dissertation | Chapter 5 |
-| ZHC consensus | Chapter 10 dissertation | Chapter 6 |
-| GUARD DSL spec | flux-isa-v3.md Section 9 | Chapter 2 |
-| cocapn.ai/certify | cocapn.ai/certify.php | All chapters |
-| Case study | flux-research/case-studies/flux-certify-pilot-case-study.md | Chapter 5 |
-| 6-tag taxonomy | PLATO quality-gated paper | Supporting |
-
----
-
-## File Structure
+## 6. Proposed File Structure
 
 ```
 constraint-theory-ecosystem/
 ├── SPEC.md                          # This file
-├── README.md                        # Entry point (Chapter 0 condensed)
-├── chapters/
-│   ├── ch00-constraint-mindset.md  # What you already know
-│   ├── ch01-why-software-fails.md  # Floating point problems
-│   ├── ch02-guard-dsl.md            # The constraint language
-│   ├── ch03-flux-c-bytecode.md      # How it executes
-│   ├── ch04-formal-verification.md  # Coq proofs
-│   ├── ch05-safety-critical.md       # DO-254 / ISO 26262 / IEC 61508
-│   ├── ch06-fleet-math.md           # ZHC, H1, Pythagorean48
-│   └── ch07-getting-started.md      # Entry points
-├── examples/
-│   ├── guard/                       # GUARD constraint examples
-│   ├── flux-c/                      # FLUX-C bytecode examples
-│   └── safety-case/                 # DO-254 artifact examples
-├── proofs/
-│   └── FluxC/                       # Coq proofs (from flux-certify)
-├── src/
-│   ├── guard-compiler/              # GUARD → FLUX-C compiler (Rust)
-│   ├── flux-vm/                     # FLUX-C reference VM (TypeScript)
-│   ├── constraint-theory-llvm/      # LLVM IR emitter
-│   └── holonomy-consensus/          # ZHC consensus implementation
-├── tests/
-│   ├── constraint-tests/            # CDCL trace tests
-│   └── verification-tests/          # Coq proof validation
-├── docs/
-│   ├── standards-matrix.md          # DO-254 / ISO 26262 / IEC 61508 comparison
-│   ├── glossary.md                  # Engineering ↔ CS translation
-│   └── faq.md                       # Common objections answered
-└── assets/
-    ├── figures/                     # Diagrams for each chapter
-    └── badges/                       # Standards badges (SVG)
+├── README.md                        # Landing page: pitch + quick links
+├── LICENSE                          # MIT
+├── CHANGELOG.md
+│
+├── chapters/                        # The main narrative (Markdown)
+│   ├── 00-constraint-mindset.md     # Chapter 0: What engineers already know
+│   ├── 01-floating-point-fails.md   # Chapter 1: Why software gets constraints wrong
+│   ├── 02-guard-dsl.md             # Chapter 2: GUARD DSL language reference
+│   ├── 03-flux-c-bytecode.md        # Chapter 3: FLUX-C VM specification
+│   ├── 04-formal-verification.md    # Chapter 4: Coq proof chain
+│   ├── 05-safety-standards.md      # Chapter 5: DO-254, ISO 26262, IEC 61508 guides
+│   ├── 06-fleet-math.md            # Chapter 6: ZHC, H1 cohomology, Pythagorean48
+│   └── 07-getting-started.md       # Chapter 7: How to use this ecosystem
+│
+├── specs/                           # Formal specifications
+│   ├── guard-dsl-spec.md            # GUARD DSL grammar and semantics
+│   ├── flux-c-isa.md                # FLUX-C 43-opcode ISA reference
+│   ├── flux-x-isa.md                # FLUX-X 247-opcode ISA reference (secondary)
+│   └── edge-encoding.md             # JC1 variable-width edge encoding
+│
+├── crates/                          # Rust implementations
+│   ├── guard-lang/                  # GUARD DSL parser + compiler
+│   ├── flux-c-vm/                   # FLUX-C reference VM (crate: flux-vm)
+│   ├── flux-c-llvm/                # LLVM IR emitter for FLUX-C
+│   ├── constraint-theory-core/      # CDCL solver, AC-3, rigidity theory
+│   ├── holonomy-consensus/          # ZHC consensus protocol (crate: holonomy-consensus)
+│   └── plato-sdk/                  # PLATO tile SDK
+│
+├── coq/                             # Formal verification
+│   ├── FluxC/                       # FLUX-C termination proofs
+│   │   ├── FluxC.v
+│   │   └── FluxCTermination.v
+│   ├── ZHC/                         # ZHC consensus correctness
+│   │   └── ZHCConsensus.v
+│   └── Pythagorean48/               # Zero-drift arithmetic proof
+│       └── ZeroDrift.v
+│
+├── proofs/                          # Generated proof certificates
+│   └── [auto-generated per constraint module]
+│
+├── examples/                        # Code examples per chapter
+│   ├── ch0-tolerance-stack/        # Chapter 0 examples
+│   ├── ch1-floating-point-fails/   # Chapter 1 examples
+│   ├── ch2-guard-lang/            # Chapter 2 examples
+│   ├── ch3-flux-c/                # Chapter 3 examples
+│   ├── ch4-coq/                   # Chapter 4 examples
+│   └── ch5-safety/                # Chapter 5 examples
+│
+├── applications/                   # Domain-specific guides
+│   ├── aviation-dal-a/            # DO-254 DAL A certification guide
+│   ├── automotive-asil-d/          # ISO 26262 ASIL-D guide
+│   └── industrial-sil-3/          # IEC 61508 SIL 3 guide
+│
+├── assets/                         # Diagrams, images, reference cards
+│   ├── guard-dsl-quick-ref.pdf     # One-page GUARD DSL reference
+│   ├── flux-c-opcodes.pdf         # FLUX-C opcode quick reference
+│   └── constraint-checklist.pdf    # Safety-critical constraint authoring checklist
+│
+└── tools/                           # Developer tools
+    ├── guard-cli/                  # GUARD DSL CLI (compile, verify, emit bytecode)
+    ├── flux-certify/              # FLUX Certify portal integration CLI
+    └── plato-admin/               # PLATO room management CLI
 ```
 
 ---
 
-## Design Principles
+## 7. Chapter Outlines
 
-1. **Physical analogies before abstract notation.** O-ring seal → constraint satisfaction. Tolerance stack → compositional constraints. Interference fit → bounded variables.
+### Chapter 0: The Constraint Mindset
 
-2. **Every chapter answers "why should I care?" first.** Engineers don't read linearly. They scan for relevance. Put the motivation in the first paragraph.
+**What it covers:**
+- The moment a hardware engineer "gets" constraint theory (the bridge)
+- Real-world constraint problems engineers already solve: tolerance stacks, O-ring glands, pressure ratings, GD&T
+- The key insight: hardware engineers are already constraint theorists — they just don't have the formal vocabulary
+- Why "approximately correct" is a category error in safety-critical systems
 
-3. **Real code examples in every chapter.** No pseudocode. No toy examples. Show actual GUARD constraints, actual FLUX-C bytecode, actual Coq theorem statements.
+**Key terminology:** constraint zone, worst-case stack, RSS (root-sum-square), interference fit, clearance fit, GD&T, tolerance envelope, pressure rating, burst pressure, working pressure, hermetic seal
 
-4. **Standards badges where relevant.** DO-254 DAL A, ISO 26262 ASIL-D, IEC 61508 SIL 3. Safety engineers need to see their requirements acknowledged.
+**Code examples:** None in this chapter. This chapter is purely conceptual.
 
-5. **No proof trees until Chapter 4.** Formal verification is advanced. Let engineers build intuition before confronting the formalism.
+**Who it's for:** Hardware engineers first. Sets up the conceptual bridge before any technical content.
 
-6. **Glossary is a first-class citizen.** "What hardware engineers call X, CS calls Y." Examples:
-   - Tolerance → Bounded variable
-   - Safety factor → Overconstraint margin
-   - Leak test → Constraint validation
-   - Stack-up → Composition
-
----
-
-## Naming Conventions
-
-- **Repo:** `constraint-theory-ecosystem` (or `constraint-theory-foundation`)
-- **Moniker:** "The Constraint Theory Ecosystem" — not "framework," not "platform," not "suite"
-- **Standards badge color:** DO-254 = blue, ISO 26262 = green, IEC 61508 = amber
-- **Chapter numbering:** ch00-ch07 (ch00 is the "you already know this" chapter)
+**Maps from:**
+- `flux-research/dissertation/CHAPTER-09-SAFETY.md` — Section 2 (containment vs. medium paradigm) and the Safe-TOPS/W metric discussion
+- `flux-research/whitepapers/2026-05-05-reverse-actualization.md` — Section 1 (formal methods gap), Section 9 (regulatory environment)
 
 ---
 
-## What This Is NOT
+### Chapter 1: Why Software Gets Constraints Wrong
 
-- **NOT a dissertation** — shorter, more accessible, code-first
-- **NOT academic** — concrete examples, real code, no proof trees in early chapters
-- **NOT floating point** — exact arithmetic, boolean outcomes, no approximation
-- **NOT a Haskell/Coq tutorial** — Coq is introduced only as a proof tool, not a programming language
-- **NOT a safety certification document** — it's educational, not regulatory guidance
+**What it covers:**
+- Floating point is not a constraint system: `0.1 + 0.2 ≠ 0.3`
+- NaN propagation: silent failure in constraint chains
+- Integer overflow: wraparound as a constraint violation that goes undetected
+- The "approximately correct" disease: why software has no concept of a tolerance zone
+- Case study: how a 0.001-unit rounding error in a battery management system causes catastrophic failure
+- The contrast: hardware engineers draw tolerance zones; software engineers write `float x`
+
+**Key terminology:** IEEE 754, NaN propagation, integer overflow, wraparound, rounding error accumulation, floating-point contamination, silent failure vs. loud failure
+
+**Code examples:**
+- A float-based battery temperature constraint that silently passes with NaN
+- An integer-based pressure constraint that wraps on overflow
+- The same constraints expressed in GUARD DSL
+
+**Who it's for:** Software engineers and hardware engineers who write software. Shows them exactly why conventional software fails constraint satisfaction.
+
+**Maps from:**
+- `flux-research/whitepapers/2026-05-05-reverse-actualization.md` — Section 2 (the deployment gap) — the gap between theorems and deployment mirrors the gap between float and constraint
+- `flux-research/dissertation/CHAPTER-09-SAFETY.md` — Section 1 (the training-deployment boundary) as analogy: both are "the artifact vs. the environment" but here applied to float vs. constraint
 
 ---
 
-*Version 1.0 — 2026-05-05*
-*Maintainer: Cocapn Fleet / SuperInstance*
+### Chapter 2: GUARD DSL — A Language for Exact Constraints
+
+**What it covers:**
+- GUARD DSL as the digital equivalent of GD&T: formal, visualizable, verifiable
+- Language grammar: how to specify constraints with priority, units, bounds, and composition
+- Compilation to FLUX-C bytecode and Coq proof certificates
+- Design philosophy: Turing-incomplete by design (no loops, no recursion — only forward jumps and composable constraint expressions)
+- Example constraint authoring session: battery temperature, geospatial fence, sensor fusion confidence threshold
+
+**Key terminology:** GUARD DSL, constraint zone, priority (HIGH/MEDIUM/LOW), unit specification, bound composition, constraint composition (AND/OR/NOT), compilation determinism, proof certificate
+
+**Code examples:**
+```
+battery_temp in [15, 55] °C with priority HIGH
+geofence lat in [37.0, 38.0] lon in [-122.5, -121.5] with priority CRITICAL
+sensor_confidence > 0.95 where sensor_type = LIDAR with priority MEDIUM
+```
+
+**Who it's for:** All audiences. This chapter teaches the primary interface to the ecosystem.
+
+**Maps from:**
+- `flux-research/specs/flux-isa-v3.md` — Section 9 (GUARD DSL spec, flux-isa-v3.md)
+- `constraint-theory-llvm/src/lib.rs` — LLVM emitter overview, CDCL trace, emitter architecture
+- `flux-research/whitepapers/2026-05-05-reverse-actualization.md` — Stage 2: Bytecode (GUARD → FLUX-C)
+
+---
+
+### Chapter 3: FLUX-C Bytecode — How Constraints Execute
+
+**What it covers:**
+- FLUX-C is not FLUX-X: 43-opcode safety layer vs. 247-opcode general-purpose layer
+- Why 43 opcodes is a feature (small surface area = fully auditable)
+- Stack-based architecture (no registers) — simpler to verify than register-based
+- Variable-length encoding (1–3 bytes) for compactness in constrained environments
+- The termination guarantee: FLUX-C is Turing-incomplete, forward-jumps only, MAX_STACK=100 structurally enforced
+- How GUARD DSL compiles to FLUX-C step by step
+- Edge encoding (JC1 variant): variable-width for ARM64/CUDA edge hardware
+
+**Key terminology:** FLUX-C, FLUX-X, opcode, stack-based VM, Turing-incompleteness, forward jump only, structural termination, MAX_STACK, variable-length encoding, edge encoding, JC1
+
+**Code examples:**
+- FLUX-C bytecode for `battery_temp in [15, 55]` (hex + disassembly)
+- The same constraint visualized as a state machine
+- Edge encoding example with energy-aware ATP opcodes
+
+**Who it's for:** Software engineers and certification authorities. Certification authorities need to understand what the bytecode does before they trust the proof chain.
+
+**Maps from:**
+- `flux-research/specs/flux-isa-v3.md` — Sections 0 (architecture), 1-12 (full ISA spec)
+- `flux-research/whitepapers/2026-05-05-reverse-actualization.md` — Stage 2: Bytecode (FLUX-C 43 opcodes)
+
+---
+
+### Chapter 4: Formal Verification — Coq Proofs That Constraints Terminate
+
+**What it covers:**
+- Why Coq: machine-verified proofs that auditors can inspect without trusting the prover
+- fluxc_terminates: every FLUX-C program halts, proven by structural induction on the instruction stream
+- ZHC convergence: Byzantine-tolerant consensus in 38ms, with Coq proof
+- Pythagorean48: zero-drift arithmetic on integer and rational operands
+- How proof certificates are generated automatically from GUARD DSL source
+- What auditors need to know: the proof is a program that a type checker has verified — there is no manual review surface for the proof itself
+
+**Key terminology:** Coq, structural induction, fluxc_terminates, ZHC convergence, Pythagorean48, zero-drift, proof certificate, type checker, work product, certification artifact
+
+**Code examples:**
+- Annotated Coq proof script excerpt (fluxc_terminates)
+- How to read a proof certificate (non-expert guide for auditors)
+
+**Who it's for:** Certification authorities and formal methods engineers. This chapter is the "why you can trust this" explanation.
+
+**Maps from:**
+- `flux-research/whitepapers/2026-05-05-reverse-actualization.md` — Stage 3: Proofs (Coq, FluxC.v)
+- `flux-research/dissertation/CHAPTER-10-TRUST.md` — Section 2 (ZHC formal specification, consensus algorithm, safety/liveness proofs)
+- `flux-research/dissertation/CHAPTER-09-SAFETY.md` — Section 5 (Safe-TOPS/W metrics, 410M CPU, 241M GPU)
+- `holonomy-consensus/src/consensus.rs` — Full Rust implementation (all 200 lines shown)
+
+---
+
+### Chapter 5: Safety-Critical Applications
+
+**What it covers:**
+- DO-254 DAL A (aviation): what it requires, how FLUX-C maps to work products, evidence package contents
+- ISO 26262 ASIL-D (automotive): same mapping for automotive
+- IEC 61508 SIL 3 (industrial automation): same mapping for industrial
+- Case study: marine autopilot constraint solver — 6 weeks/$240K → 4 hours/$8K
+- The 250× verification speedup: what changed in the pipeline
+- What "Safe-TOPS/W = 410M" means for hardware selection
+
+**Key terminology:** DO-254, DAL A/B/C, RTCA, ISO 26262, ASIL-A/B/C/D, IEC 61508, SIL 1/2/3/4, work product, evidence package, design assurance level, functional safety, systematic capability
+
+**Code examples:** None. This chapter is about the regulatory and deployment context.
+
+**Who it's for:** Certification authorities, safety engineers, and program managers evaluating the ecosystem.
+
+**Maps from:**
+- `flux-research/whitepapers/2026-05-05-reverse-actualization.md` — Section 5 (pilot data: 6 weeks→4 hours, $240K→$8K), Section 8 (certification pathways)
+- `flux-research/dissertation/CHAPTER-09-SAFETY.md` — Section on Safe-TOPS/W (410M CPU, 241M GPU with formal proofs)
+
+---
+
+### Chapter 6: The Fleet Math — ZHC Consensus, H1 Emergence, Pythagorean48
+
+**What it covers:**
+- Zero Holonomy Consensus (ZHC): consensus as geometric invariant, not voting
+- Why 38ms latency beats 412ms PBFT: O(1) per-node vs. O(n²) messages, leader-free
+- Laman's theorem: why 12 neighbors maximum makes the network rigid and therefore determinate
+- H1 cohomology emergence detection: 127 lines vs. 12,000-line ML classifier
+- The 2.7-second early warning window
+- Pythagorean48: why 6-bit encoding with zero drift after 1,000 hops matters for long-running constraint solvers
+- Fleet coordination: ABOracle instances maintain provable agreement through ZHC
+
+**Key terminology:** ZHC, holonomy, SO(3), parallel transport, Laman's theorem, rigidity, H¹ cohomology, first Betti number, β₁ = E − V + C, emergence detection, Pythagorean48, zero-drift, Byzantine fault tolerance (detectable vs. preventable), leader-free consensus
+
+**Code examples:**
+- ZHC cycle computation in Rust (from consensus.rs, simplified)
+- H1 emergence detection: annotated 127-line topological code vs. equivalent ML
+
+**Who it's for:** Engineers who want to understand why the math works. This chapter builds intuition before Formal Verification (Chapter 4) but is more technical than Chapters 0–2.
+
+**Maps from:**
+- `flux-research/dissertation/CHAPTER-09-SAFETY.md` — Section 4 (ZHC, Safe-TOPS/W, β₁ emergence)
+- `flux-research/dissertation/CHAPTER-10-TRUST.md` — Sections 2 (ZHC formal spec), 6 (fleet mathematics, Laman's theorem, Ricci flow)
+- `holonomy-consensus/src/consensus.rs` — Rust implementation (all 200+ lines)
+- `flux-research/whitepapers/2026-05-05-reverse-actualization.md` — Stage 1 (Pythagorean48)
+
+---
+
+### Chapter 7: How to Get Started
+
+**What it covers:**
+- Install the GUARD CLI (`cargo install guard-lang`)
+- Write your first constraint in GUARD DSL
+- Compile to FLUX-C bytecode and generate a Coq proof certificate
+- Select your certification target (DO-254, ISO 26262, IEC 61508)
+- Submit to FLUX Certify (cocapn.ai/certify) for evidence package generation
+- Deploy to fleet via ABOracle
+- Quick reference card (printable PDF)
+- Troubleshooting guide for common errors
+
+**Key terminology:** guard-cli, FLUX Certify, ABOracle, evidence package, certification submission
+
+**Code examples:**
+```
+# Install
+cargo install guard-lang
+
+# Write constraint
+echo 'battery_temp in [15, 55] °C with priority HIGH' > battery.guard
+
+# Compile + prove
+guard compile battery.guard --output battery.fbc --proof battery.v
+
+# Submit for certification
+guard certify battery.fbc --standard DO-254 --dal A --hardware imx8mp
+```
+
+**Who it's for:** All audiences. This chapter is the "now do it" chapter.
+
+---
+
+## 8. Asset Mapping
+
+| Asset | Primary Chapter(s) | Notes |
+|---|---|---|
+| `flux-research/specs/flux-isa-v3.md` | Ch3 (FLUX-C), Ch7 (CLI reference) | Section 9: GUARD DSL spec. Sections 0–12: full ISA. Section 12: edge encoding (JC1). |
+| `flux-research/dissertation/CHAPTER-09-SAFETY.md` | Ch6 (fleet math), Ch4 (formal verification), Ch0 (constraint mindset) | β₁ emergence detection, Safe-TOPS/W, ZHC consensus |
+| `flux-research/dissertation/CHAPTER-10-TRUST.md` | Ch6 (fleet math), Ch4 (formal verification) | ZHC formal spec, safety/liveness proofs, Laman's theorem, Tide-Pool Security |
+| `flux-research/whitepapers/2026-05-05-reverse-actualization.md` | Ch5 (certification), Ch4 (proofs), Ch2 (GUARD DSL) | Stage 1-4 multiplier chain, pilot data, certification pathways |
+| `flux-research/whitepapers/2026-05-05-plato-quality-gated.md` | Ch6 (H1 emergence), Ch2 (quality gates) | H¹ cohomology emergence detection, 6-tag taxonomy, PlatoTileQualityScorer |
+| `holonomy-consensus/src/consensus.rs` | Ch6 (ZHC), Ch4 (Coq proof target) | Full Rust implementation of ZHC consensus |
+| `constraint-theory-llvm/src/lib.rs` | Ch2 (GUARD DSL compiler), Ch3 (LLVM emitter) | LLVM IR emitter, CDCL trace, cranelift findings |
+
+---
+
+## 9. Design Principles
+
+1. **"Why should I care?" first, math second.** Every chapter opens with the hardware engineer's perspective. What problem do they already have that this chapter solves?
+
+2. **Physical analogies before abstract notation.** Tolerance stacks → constraint zones. O-ring gland → formal specification. Pressure ratings → constraint priority.
+
+3. **Real code in every chapter.** Chapter 0 has no code. Every other chapter has executable examples that compile with the GUARD CLI.
+
+4. **Standards badges where relevant.** DO-254, ISO 26262, IEC 61508 badges appear in chapters 4, 5, and 6 with specific guidance for each standard.
+
+5. **No proof trees until Chapter 4.** Chapters 0–3 use intuitive explanations. Chapter 4 (Formal Verification) is where the Coq proofs appear — and they come with a non-expert guide for auditors.
+
+6. **Zero-shot readable.** Someone who has never heard of Coq, PLATO, or FLUX-C should be able to read Chapter 0 and come away understanding why constraint theory matters to them.
+
+7. **One canonical location.** Every artifact — spec, code, proofs, examples, applications — lives in this repo. Not scattered across blog posts, papers, and separate repositories.
+
+---
+
+## 10. What This Is NOT
+
+- **Not a dissertation.** Shorter, more accessible, code-first. The dissertation chapters inform this repo but are not included verbatim.
+- **Not academic.** Concrete examples, real code, real deployment data (the 4-hour/$8K pilot). No proof trees in chapters 0–3.
+- **Not floating point.** Exact arithmetic, boolean outcomes. The contrast is explicit and central.
+- **Not a research prototype.** FLUX Certify is live at cocapn.ai/certify. The proofs are real. The bytecode runs on production hardware.
+
+---
+
+## 11. Naming Candidates Considered
+
+| Name | Rejected Because |
+|---|---|
+| `constraint-theory` | Too generic, suggests a single paper not an ecosystem |
+| `guard-lang` | Narrows scope to just the DSL; ignores FLUX-C, Coq, fleet math |
+| `flux-theory` | Conflates with FLUX brand; unclear it covers the full ecosystem |
+| `no-gaps` | Clever but obscure; doesn't communicate what the repo is about |
+| `constraint-theory-ecosystem` | ✓ Accurate, emphasizes the complete toolkit, signals this is not a single paper |
+
+---
+
+## 12. Open Questions (for review)
+
+1. **Should JC1 edge encoding be a separate repo?** The Jetson Orin Nano / ARM64 / CUDA constrained hardware story is specialized. Would a top-level `edge/` directory be sufficient, or does it need its own repo?
+
+2. **Should the Coq proofs live here or in a separate `flux-certify` repo?** The `flux-certify` crate is at `SuperInstance/flux-certify`. Keeping proofs here maintains the zero-shot-readable promise. But the Coq proofs are also referenced from `flux-certify`. Which is canonical?
+
+3. **Chapter ordering:** Is Chapter 6 (Fleet Math / ZHC / H1) the right place for the heavy math? Or should it come before Chapter 4 (Formal Verification) since the Coq proofs in Chapter 4 depend on understanding ZHC?
+
+4. **Should we include the `flux-vm` crate as a git submodule or document it as an external dependency?** The `flux-vm` crate on crates.io is Forgemaster's implementation. Keeping it as an external dependency keeps this repo focused on the narrative (chapters) and the canonical specs, not the implementation.
+
+5. **The dissertation chapters** (`CHAPTER-09-SAFETY.md`, `CHAPTER-10-TRUST.md`) are long (hundreds of lines each). Do we include excerpts in the chapters, or link to the originals with a clear mapping? The SPEC says link + mapping. Confirm this is preferred over including excerpts.
+
+---
+
+## 13. Immediate Next Steps
+
+1. **Create repo** `SuperInstance/constraint-theory-ecosystem` on GitHub (public)
+2. **Push this branch** `spec/constraint-theory-ecosystem` with this SPEC.md
+3. **Create directory structure** as specified in Section 6
+4. **Begin drafting chapters** in order: Ch0 → Ch7 (Ch0 needs no code; others do)
+5. **Draft `crates/guard-lang`** as the first implementation artifact (needed for Ch2 examples)
+6. **Draft `crates/flux-c-vm`** as the second implementation artifact (needed for Ch3 examples)
+7. **Copy/adapt Coq proofs** from `flux-research` into `coq/FluxC/`, `coq/ZHC/`, `coq/Pythagorean48/`
+8. **Draft `applications/` guides** for DO-254, ISO 26262, IEC 61508 (Ch5)
+9. **Draft `README.md`** as the landing page (pitch + quick links to each chapter)
+10. **Publish when ready** for public review
+
+---
+
+*This SPEC defines the structure and scope. Actual chapter content will be authored in subsequent tasks.*

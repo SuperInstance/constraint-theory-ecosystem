@@ -1,6 +1,6 @@
 # Constraint Theory Ecosystem
 
-**The math that hardware engineers already know. Formalized, proven, and running at 62 billion checks per second.**
+**The math that hardware engineers already know. Formalized, proven, and running at 62 billion checks per second. In 42 languages. In 42 languages.**
 
 ---
 
