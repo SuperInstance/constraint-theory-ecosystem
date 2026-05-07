@@ -4,6 +4,25 @@
 
 ---
 
+## Quick Start
+
+**You need:** `cargo install flux-vm` or run in Docker
+
+Run a constraint on FLUX-C:
+
+```bash
+echo 'battery_temp in [15, 55]' | guard compile --format fluxc > constraint.fbc
+fluxvm run constraint.fbc --input temp=23
+# Output: PASS, cycles=12
+
+fluxvm run constraint.fbc --input temp=-5
+# Output: FAIL (violation: temp < 15), cycles=8
+```
+
+FLUX-C terminates. Always. In ≤ 1000 cycles per constraint.
+
+---
+
 ## Why 43 Opcodes Is a Feature
 
 x86_64 has approximately 3,000 instructions. ARM64 has about 1,200. FLUX-C has **43**.

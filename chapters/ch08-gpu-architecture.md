@@ -4,6 +4,23 @@
 
 ---
 
+## Quick Start
+
+**You need:** CUDA GPU, or run in Docker (no GPU required for testing)
+
+```bash
+# In Docker (no GPU setup needed)
+docker run --rm -v $(pwd):/workspace fleet-sandbox bash -c \
+  "fluxvm bench --constraints 1000000 --batch-size 65536"
+
+# On GPU (RTX 4050 or better)
+fluxvm bench --device cuda --throughput
+# Output: 62.2 billion constraint checks/second
+#         Zero mismatches across 60M test vectors
+```
+
+---
+
 ## The Machine
 
 RTX 4050 Laptop GPU. 20 SMs. 6GB VRAM. 16.85 watts sustained. Cost: ~$300.

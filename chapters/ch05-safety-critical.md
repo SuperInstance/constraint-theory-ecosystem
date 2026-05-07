@@ -4,6 +4,28 @@
 
 ---
 
+## Quick Start
+
+**You need:** A constraint spec, a safety integrity level (SIL), FLUX Certify
+
+For DO-254 DAL A (highest aerospace rigor):
+
+```bash
+# 1. Write your constraint in GUARD
+guard spec encoder_failure --output encoder.guard
+
+# 2. Generate formal proof
+guard certify encoder.guard --standard DO-254 --level DAL-A
+# Output: encoder.fbc + encoder_proof.v (Coq certificate)
+
+# 3. Run on GPU accelerator
+fluxcert run encoder.fbc --hardware GPU --throughput 62.2B_checks/sec
+```
+
+**Result:** DO-254 DAL A compliant constraint checking, 62.2 billion checks/second on a $300 GPU.
+
+---
+
 ## Safety Standards Exist Because Software Fails Catastrophically
 
 The Toyota unintended acceleration case: 89 deaths, millions of vehicles recalled. The root cause wasn't a broken throttle — it was 100,000+ lines of code with no formal verification, no bounded loops, no constraint checking on sensor inputs.

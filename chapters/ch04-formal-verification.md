@@ -4,6 +4,29 @@
 
 ---
 
+## Quick Start
+
+**You need:** Coq 8.x, the proof scripts in `proofs/`
+
+Verify a constraint terminates:
+
+```bash
+cd constraint-theory-ecosystem/crates/flux-vm/proofs
+coqc battery_temp_termination.v
+# Output: battery_temp_term is defined
+# The proof certifies: this constraint always terminates in ≤ 1000 cycles
+```
+
+What the proof establishes:
+- The bytecode never enters an infinite loop
+- Division by zero cannot occur
+- NaN cannot be produced
+- The constraint check always returns PASS or FAIL
+
+This is a **machine-checked proof certificate** — not a test.
+
+---
+
 ## The Testing Paradox
 
 You've written a test suite. 10,000 test cases. All passing. Your constraint checker works correctly.

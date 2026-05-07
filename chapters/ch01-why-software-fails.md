@@ -4,6 +4,29 @@
 
 ---
 
+## Quick Start
+
+**You need:** 5 minutes, Python
+
+The problem: floating point has special values (NaN, ±∞) that bypass normal comparisons. See it fail:
+
+```python
+import math
+
+temp = float('nan')
+if 15 < temp < 55:
+    print("Charging enabled")  # NEVER runs — NaN comparisons always return False
+else:
+    print("Charging blocked")  # Runs — but NaN doesn't mean "cold"!
+
+# Another failure mode:
+temp = -40.0  # frozen sensor reads -40, passes the check silently
+```
+
+The fix: use constraint DSL that validates inputs before comparison (Chapter 2).
+
+---
+
 ## The Story Every Engineer Has
 
 You're writing code for an industrial controller. Temperature sensor reads `temp = 23.4567`. You write:

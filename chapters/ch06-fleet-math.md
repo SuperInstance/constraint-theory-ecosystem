@@ -4,6 +4,39 @@
 
 ---
 
+## Quick Start
+
+**You need:** `cargo add fleet-coordinate`
+
+Check if a fleet is rigid (Laman's theorem):
+
+```rust
+use fleet_coordinate::ConstraintGraph;
+
+let graph = ConstraintGraph::new()
+    .add_tile("oracle1", &[0.0, 0.0])
+    .add_tile("forgemaster", &[1.0, 0.0])
+    .add_tile("jc1", &[0.5, 0.866])
+    .add_edge("oracle1", "forgemaster")
+    .add_edge("forgemaster", "jc1")
+    .add_edge("jc1", "oracle1");
+
+// V=3, E=3 → E = 2V-3 ✓ Rigid
+assert!(graph.is_laman_rigid());
+```
+
+Detect emergence via H¹:
+
+```rust
+use fleet_coordinate::detect_emergence;
+
+let result = detect_emergence(4, 6, 1);  // V=4, E=6, C=1
+// β₁ = 6-4+1 = 3, V-2 = 2 → β₁ > V-2 → emergence possible
+assert!(result.emergence_detected);
+```
+
+---
+
 ## Why "Fleet Math" Is Different
 
 Most distributed systems research focuses on making systems work. Fleet math focuses on proving they work — and proving it without the overhead of traditional consensus.

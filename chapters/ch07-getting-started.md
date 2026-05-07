@@ -4,6 +4,32 @@
 
 ---
 
+## Quick Start
+
+**Choose your entry point:**
+
+### Entry A: Constraint DSL (start here if you write code)
+```bash
+cargo install guard-lang
+echo 'battery_temp in [15, 55]' > battery.guard
+guard check battery.guard --temp 23
+```
+
+### Entry B: FLUX-VM (start here if you want to understand execution)
+```bash
+cargo install flux-vm
+fluxvm run battery.fbc --input temp=23
+# Always terminates, outputs PASS or FAIL
+```
+
+### Entry C: Fleet Coordinate (start here if you build multi-agent systems)
+```bash
+cargo add fleet-coordinate
+# Then see ch06 for the Rust API
+```
+
+---
+
 ## The Dojo Entry
 
 Every student in Casey's fleet starts exactly where they are. You don't need to know Coq. You don't need to know distributed systems. You don't even need to know Python.

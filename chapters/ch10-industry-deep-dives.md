@@ -2,6 +2,30 @@
 
 *Every industry has constraints. Some kill people. Some kill missions. Some kill profits. Constraint theory gives them a common language.*
 
+## Quick Start
+
+**You need:** `guard-lang` installed
+
+Find your industry and pick a constraint:
+
+```bash
+# Aviation — cabin pressure
+guard check 'cabin_pressure_psi > 10.9' --value 11.2
+# PASS
+
+# Automotive — battery state of charge
+guard check 'battery_soc in [15, 100]' --value 85
+# PASS
+
+# Maritime — water temperature (bait detection)
+guard check 'water_temp in [42, 52]' --value 48
+# PASS — bait signature detected
+```
+
+Each industry section in this chapter has real constraints with FLUX-C bytecode. Browse by industry or search for your domain.
+
+---
+
 ## 1. AVIATION: DO-178C and the Unforgiving Sky
 
 In aviation, constraints aren't suggestions—they're physics enforced by certification authorities. The DO-178C standard demands that every constraint violation be impossible, not just improbable.

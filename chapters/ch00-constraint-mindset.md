@@ -1,175 +1,131 @@
 # Chapter 0 — The Constraint Mindset
 
-> **What You Already Know**
+> **You are already a constraint theorist. You just haven't called it that.**
 
 ---
 
-## You Are Already a Constraint Theorist
+## The One Idea That Makes This Whole Thing Click
 
-You've been doing constraint theory your entire career. You just haven't called it that.
-
-Every time you've calculated a **tolerance stack**, you've composed constraints. Every time you've specified an **interference fit**, you've written a constraint inequality. Every time you've watched an **o-ring seat** and decided yes or no — you've performed a constraint satisfaction check.
+Every time you've calculated a **tolerance stack**, you've composed constraints.  
+Every time you've specified an **interference fit**, you've written a constraint inequality.  
+Every time you've watched an **O-ring seat** and decided yes or no — you've performed a constraint satisfaction check.
 
 The math is the same. The language is different.
 
 ---
 
+## Quick Start
+
+**You need:** 5 minutes  
+**You need to know:** nothing new — just recognize what you already do
+
+---
+
 ## Example 1: The Tolerance Stack
 
-You have three components with dimensions:
+You have three components:
 - A: 10.000 ±0.005 mm
 - B: 5.000 ±0.005 mm
 - C: 5.000 ±0.005 mm
 
-They stack into a housing with a specification:
-- Total length: 20.000 ±0.020 mm
+They stack into a housing: **20.000 ±0.020 mm**
 
-**The constraint:** Does the stack fit?
+**The constraint check:**
 
-**Math:**
 ```
-Min(A+B+C) = (10.000-0.005) + (5.000-0.005) + (5.000-0.005) = 19.985 mm
-Max(A+B+C) = (10.000+0.005) + (5.000+0.005) + (5.000+0.005) = 20.015 mm
-
-Acceptable range: [19.980, 20.020] mm
-
-Is 19.985 >= 19.980? Yes.
-Is 20.015 <= 20.020? Yes.
-
-Therefore: the stack ALWAYS fits, regardless of component variation.
+Min(A+B+C) = 19.985 mm  ✓  (≥ 19.980 minimum)
+Max(A+B+C) = 20.015 mm  ✓  (≤ 20.020 maximum)
 ```
 
-This is **compositional constraint satisfaction**. The constraint (total length within tolerance) is satisfied if and only if all sub-constraints (individual dimensions within tolerance) are satisfied. No probabilities. No "probably fits." Either the answer is yes or the answer is no.
+The stack **always** fits. Not "probably." Not "usually." Either yes or no.
+
+This is **constraint satisfaction.** No probabilities. No "close enough."
 
 ---
 
 ## Example 2: The Interference Fit
 
-You want to press a steel shaft into a housing bore. You specify:
-- Shaft diameter: 10.000 mm
-- Bore diameter: 9.995 mm
-- Interference: 0.005 mm (5 micrometers)
+Shaft: Ø10.000 mm. Bore: Ø9.995 mm.
 
-**The constraint:** Will the assembly hold without additional fasteners?
-
-**Engineering decision:**
-- Friction coefficient (steel-on-steel, dry): μ ≈ 0.15–0.25
-- Contact pressure from interference: P = 2Eδ/(d × (1 - ν²)) × (d/d_inner)... [formula from machinery's handbook]
-- Clamping force must exceed operating torque
-
-**The constraint check:**
 ```
-GUARD interference_fit(
-    shaft_diameter >= bore_diameter,        # must be interference
-    shaft_diameter <= bore_diameter + 0.020, # cannot be too tight
-    clamping_force > operating_torque / (μ * contact_radius)  # must not slip
-)
+Interference = 9.995 − 10.000 = −0.005 mm  (PRESS fit)
 ```
 
-If all three constraints are satisfied simultaneously → the fit holds. If any one fails → catastrophic failure (shaft slips under load).
+If the spec says "interference must be between −0.010 and −0.002 mm":
+- −0.005 is **within spec** → use hydraulic press
+- −0.015 is **out of spec** → machined wrong, reject it
 
-There is no floating point tolerance here. The o-ring either seals or it doesn't. The shaft either holds or it slips.
+**Either the fit works or it doesn't.** There's no "maybe."
 
 ---
 
-## Example 3: The O-Ring Seal
+## Example 3: The O-Ring Gland
 
-You have a hydraulic fitting with an o-ring groove:
-- O-ring nominal ID: 10.0 mm
-- Groove diameter: 11.0 mm
-- O-ring cross-section: 2.0 mm
-- Specified squeeze: 15–25%
+O-ring free height: 3.0 mm. Gland depth: 2.30 mm.
 
-**The constraint:**
 ```
-squeeze = (groove_width - o_ring_cs) / o_ring_cs
-GUARD squeeze in [0.15, 0.25]
+Squeeze = (3.0 − 2.30) / 3.0 = 23.3%
 ```
 
-Below 15% squeeze: the o-ring leaks (not enough compression to fill the groove geometry).
-Above 25% squeeze: the o-ring extrudes (over-compression damages the seal material).
+If the spec says "squeeze must be 15–25%":
+- 23.3% is **within spec** → good seal
+- 10% is **out of spec** → leak risk
+- 30% is **out of spec** → O-ring extrusion risk
 
-15–25% is not a recommendation. It's a **hard constraint boundary**. Outside the boundary → catastrophic hydraulic failure.
-
-This is what safety engineers call a **catastrophic failure mode** — the system doesn't degrade gracefully, it fails suddenly and completely.
-
-Software engineers would call this an **assertion failure**. Except most software doesn't have assertions for physical failure modes.
+**The constraint is the spec.** The math tells you whether you meet it.
 
 ---
 
-## Example 4: The Pressure Rating
+## The Floating Point Problem
 
-A hydraulic cylinder has:
-- Working pressure: 3,000 psi (207 bar)
-- Proof pressure (test): 1.5× working = 4,500 psi
-- Burst pressure: 4× working = 12,000 psi (theoretical minimum — actual parts burst higher)
+Software doesn't work this way. It uses floating point:
 
-**The constraints:**
-```
-GUARD working_pressure <= 3000 psi * 0.80      # 80% derating factor
-GUARD proof_pressure <= 4500 psi * 0.90       # 90% of test pressure
-GUARD pressure_fatigue_cycles < max_cycles    # no infinite cycling
+```python
+temp = sensor.read()  # might be 0.0, NaN, or -40.0
+if 15 < temp < 55:
+    enable_charging()
 ```
 
-Notice the **safety factor** in the constraint specification. The 80% derating isn't "to make the engineer feel safe." It's an **over-constraint margin** that accounts for:
-- Measurement uncertainty (pressure gauge error ±2%)
-- Material property variation (heat treatment lot differences)
-- Dynamic pressure spikes (valve transient, pump surge)
-- Temperature effects (thermal expansion changes clearance)
+- `temp = NaN` → comparison returns **false** → charging never enables
+- `temp = -40.0` (frozen sensor) → no alert, frozen battery tries to charge
+- `temp = inf` → no alert, overflow propagates silently
 
-**Safety factor is a constraint margin.** It exists because we know our constraints are wrong — we just don't know by how much.
+**Hardware engineer response:** "That sensor is reading out of its valid range — it should be rejected before the check."
 
----
-
-## The Bridge to Software
-
-Here is what all four examples have in common:
-
-1. **Bounded variables** — Every value has a physically meaningful range. A shaft can't be negative diameter. Pressure can't be below vacuum (well, it can, but you know what we mean).
-
-2. **Boolean outcomes** — Either the constraint is satisfied or it isn't. Either the o-ring seals or it doesn't. Either the stack fits or it doesn't.
-
-3. **Catastrophic failure modes** — Constraint violations don't produce "close enough" results. They produce **failure**. The o-ring doesn't "mostly seal."
-
-4. **Composition** — Complex constraints are built from simple ones. The tolerance stack is a SUM of bounded variables. The interference fit is an AND of geometric and force constraints.
-
-5. **No approximation** — Real engineering uses exact tolerances. The hole is 10.000mm ±0.005mm. Not "approximately 10mm." The tolerance IS the specification.
-
-Software has none of these properties by default:
-- Integers overflow silently
-- Floats propagate NaN and lose precision
-- Booleans don't compose cleanly (null, undefined, three-valued logic)
-- Failure modes are often silent or poorly defined
-
-**This is the gap that constraint theory fills.** It brings the rigor of physical engineering to software.
+**Software engineer response:** "Works on my machine."
 
 ---
 
-## What Comes Next
+## The Constraint Mindset — Defined
 
-The rest of this ecosystem explains how to bring that rigor to software:
+| Hardware Engineer | Constraint Theorist |
+|---|---|
+| "Does it fit the tolerance zone?" | "Does it satisfy the constraint?" |
+| O-ring squeeze 15–25% | `squeeze ∈ [0.15, 0.25]` |
+| Interference fit −0.010 to −0.002 | `interference ∈ [-0.010, -0.002]` |
+| Pressure rating 4× working | `burst_pressure ≥ 4 × working_pressure` |
 
-- **Chapter 1:** Why software gets constraints wrong (and why floating point is the root cause)
-- **Chapter 2:** GUARD DSL — a constraint language as precise as GD&T
-- **Chapter 3:** FLUX-C bytecode — how constraints execute as verifiable machine code
-- **Chapter 4:** Formal verification — Coq proofs that constraints terminate and produce correct results
-- **Chapter 5:** Safety-critical applications — DO-254, ISO 26262, IEC 61508
-- **Chapter 6:** The fleet math — ZHC, H1, Pythagorean48
-
----
-
-## Key Takeaway
-
-If you've ever said any of the following, you already think in constraints:
-
-- "The tolerance stack won't close unless we use a tighter spec on B"
-- "That interference is too tight — the housing will crack during assembly"
-- "The o-ring squeeze is wrong — it'll leak at 5,000 psi"
-- "The safety factor is too thin for a safety-critical application"
-- "We need a burst pressure of 3× working pressure"
-
-**Constraint theory is formalizing the math you already do in your head.** The rest of this ecosystem shows you how to make software do the same.
+**Same thinking. Same math. Software just never got the formal vocabulary.**
 
 ---
 
-*Next: [Chapter 1 — Why Software Gets Constraints Wrong](ch01-why-software-fails.md)*
+## What This Book Gives You
+
+1. **The vocabulary** — formal names for what you already do
+2. **The language** — GUARD DSL (write constraints in code, the way you specify them on paper)
+3. **The proof** — Coq machine-checked certificates that your constraints are satisfied
+4. **The math** — Laman's theorem, H¹ cohomology, Pythagorean48 (fleet coordination from geometry, not voting)
+
+---
+
+## Key Insight
+
+The gap between hardware and software constraint thinking is not intelligence. It's that hardware engineers learned to work with **hard boundaries** — parts either fit or they don't. Software learned to work with **approximations** — results are "close enough" until they're catastrophically wrong.
+
+**Constraint theory makes software engineering as rigorous as hardware engineering.** The tolerance zones are the same. The math is the same. Now the language is too.
+
+---
+
+## Next: Why Software Gets Constraints Wrong
+
+Chapters 1–3 show exactly why floating point fails constraint satisfaction — and how GUARD DSL fixes it. Start wherever you want. Chapters are independent.

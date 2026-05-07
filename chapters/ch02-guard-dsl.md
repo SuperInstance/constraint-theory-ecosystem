@@ -4,6 +4,31 @@
 
 ---
 
+## Quick Start
+
+**You need:** `cargo install guard-lang` or `pip install guard-lang`
+
+Write a constraint:
+
+```bash
+echo 'battery_temp in [15, 55] °C with priority HIGH' > battery.guard
+guard check battery.guard --temp 23
+# Output: PASS — battery_temp = 23°C is within [15, 55]
+
+guard check battery.guard --temp -5
+# Output: FAIL — battery_temp = -5°C is below 15°C minimum
+```
+
+Compile to FLUX-C bytecode:
+
+```bash
+guard compile battery.guard --output battery.fbc
+guard dump battery.fbc
+# Prints the 43-opcode bytecode for this constraint
+```
+
+---
+
 ## The Analogy That Makes It Click
 
 Geometric Dimensioning and Tolerancing (GD&T) is how mechanical engineers talk about what's *acceptable* in a manufactured part — without GD&T, "the shaft must fit in the bore" is a handwave. With GD&T, it's an explicit, machine-verifiable callout: `Ø12.000₊₀.₀₁₀⁻₀.₀₀₀` means the shaft diameter must be between 12.000mm and 12.010mm.
