@@ -70,6 +70,7 @@ The [full benchmark suite](cuda/benches/) has 54 experiments covering every conf
 |-------|-------|--------|
 | [English proofs](docs/proofs/) | 30 | Complete |
 | [Coq theorems](coq/) | 15 (8 original + 7 saturation) | Proven |
+| [DO-178C Coq proofs](https://github.com/SuperInstance/eisenstein-do178c) | 42 theorems, 24/31 Level A objectives | Certified path |
 | [Differential tests](cuda/benches/differential/) | 60 million inputs | Zero mismatches |
 | [Cross-model replication](https://github.com/SuperInstance/multi-model-adversarial-testing) | 7 claims × 3 models | 92% average convergence |
 
@@ -98,6 +99,7 @@ The same constraint core has been ported to [47 languages and runtimes](ports/).
 - [Python](https://github.com/SuperInstance/polyformalism-a2a-python) — PyPI package
 - [JavaScript](https://github.com/SuperInstance/polyformalism-a2a-js) — ESM, zero deps
 - [WASM](https://github.com/SuperInstance/eisenstein-wasm) — browser + Node.js
+- [ARM NEON](https://github.com/SuperInstance/arm-neon-eisenstein-bench) — 3.3× throughput on Cortex-A72
 
 ---
 
@@ -111,6 +113,11 @@ The constraint theory ecosystem is one layer of the [SuperInstance](https://gith
 - [holonomy-consensus](https://github.com/SuperInstance/holonomy-consensus) — topological consensus without quorum
 - [fleet-coordinate](https://github.com/SuperInstance/fleet-coordinate) — multi-agent spatial coordination
 - [pythagorean48-codes](https://github.com/SuperInstance/pythagorean48-codes) — exact direction encoding
+- [eisenstein-do178c](https://github.com/SuperInstance/eisenstein-do178c) — DO-178C certification evidence (42 Coq theorems)
+- [arm-neon-eisenstein-bench](https://github.com/SuperInstance/arm-neon-eisenstein-bench) — ARM NEON benchmarks (3.3× scalar)
+- [eisenstein-bench](https://github.com/SuperInstance/eisenstein-bench) — CLI benchmark suite (5 commands)
+- [eisenstein-fuzz](https://github.com/SuperInstance/eisenstein-fuzz) — property-based fuzzing (6 targets)
+- [hexgrid-gen](https://github.com/SuperInstance/hexgrid-gen) — hex grid lookup table generator (Rust/C/Python/JS/JSON)
 
 ---
 
