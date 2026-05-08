@@ -1,14 +1,34 @@
-# constraint-theory-ecosystem
+# Constraint Theory Ecosystem
 
-54 GPU experiments. 47 language ports. 60M differential test inputs with zero mismatches. CUDA benchmarks on real hardware. Coq proofs of core semantics.
+**54 GPU experiments. 47 language ports. 60 million differential test inputs with zero mismatches. All the code, all the numbers, all the things that didn't work.**
 
-This is the lab notebook — the numbers, the code, and the honest negative results.
+This is the engineering record for the constraint theory project — the CUDA benchmarks on real hardware, the Coq proofs of core semantics, the cross-language ports, and the honest negative results that tell you where this thing still has rough edges.
+
+If you're evaluating this for production use, this is the repo to read. Everything else is documentation. This is the data.
 
 ---
 
-## The idea
+## The Problem
 
-Software verification uses floating-point. Float lies — NaN, Inf, rounding drift, ULP errors. Constraint theory uses integer range checks instead. Same math hardware engineers use for tolerance stacks and go/no-go gauges, but compiled to a 43-opcode bytecode that can't loop forever and runs at hardware speed.
+Software verification uses floating-point arithmetic. Float lies — not maliciously, but inevitably. NaN poisons comparisons. Inf breaks bounds checks. ULP errors accumulate until a constraint that should pass starts failing, or one that should fail starts passing.
+
+You've debugged this. It looks like a race condition, but it reproduces reliably on one machine and not another. It's not a race. It's float.
+
+Constraint theory replaces floating-point checks with integer range checks — the same thing hardware engineers use for tolerance stacks and go/no-go gauges. Instead of computing `distance < threshold` as a float comparison with six decimal places of uncertainty, you compute `distance_int < threshold_int` as an integer comparison with zero uncertainty.
+
+That's the whole idea. Everything else in this repo is proving it works at scale.
+
+---
+
+## The Math You Can Check
+
+From the [superinstance](https://github.com/SuperInstance/superinstance) README:
+
+> Floating point says "close enough." That's the problem.
+> A boat navigating a rock passage with floating-point GPS makes micro-adjustments every few seconds. It overcorrects. It overshoots. It burns fuel fighting itself. After a hundred corrections the heading is garbage.
+> Constraint theory draws the safe zone and says "snap here."
+
+The execution pipeline:
 
 ```
 GUARD DSL          ← Write constraints (like GD&T for software)
@@ -20,127 +40,80 @@ GPU / ARM / FPGA   ← Execute at hardware speed
 Coq Proofs         ← 15 theorems cover core semantics
 ```
 
-New here? Read the [Physical Engineer's Guide](docs/physical-engineers-guide.md). Fifteen minutes, no code, just O-rings and tolerance stacks.
+New here? The [Physical Engineer's Guide](docs/physical-engineers-guide.md) teaches the whole system in fifteen minutes using O-rings and tolerance stacks. No code required.
 
 ---
 
-## The numbers
+## The Numbers
 
-All benchmarks on RTX 4050. Real hardware, not paper estimates.
+All benchmarks on [RTX 4050](https://github.com/SuperInstance/constraint-theory-ecosystem/tree/main/cuda) (Ada Lovelace). Real hardware. Real measurements. Not paper estimates.
 
-| Configuration | Throughput | Precision loss |
-|--------------|-----------|---------------|
-| INT8 × 8 parallel | **62.2 B checks/sec** | Zero |
-| CUDA Graphs (replay) | 9,500 B c/s | Zero |
-| Temporal (rate + persistence) | 22.8 B c/s | Zero |
-| Cross-sensor (AND/OR) | 14.8 B c/s | Zero |
-| Streaming incremental (0.1% Δ) | 4,699 B c/s amortized | Zero |
-| CPU scalar (Rust, single core) | 7.6 B c/s | Zero |
-| FP16 (half-precision float) | ~50 B c/s | **76% mismatches** |
+| Configuration | Throughput | Precision |
+|--------------|-----------|-----------|
+| [INT8 × 8 parallel](cuda/benches/README.md) | **62.2 B checks/sec** | Zero loss |
+| [CUDA Graphs](cuda/benches/cuda-graphs.md) (replay) | 9,500 B c/s | Zero |
+| [Temporal](cuda/benches/temporal.md) (rate + persistence) | 22.8 B c/s | Zero |
+| [Cross-sensor](cuda/benches/cross-sensor.md) (AND/OR) | 14.8 B c/s | Zero |
+| [Streaming incremental](cuda/benches/streaming.md) (0.1% Δ) | 4,699 B c/s amortized | Zero |
+| CPU scalar ([Rust](https://github.com/SuperInstance/constraint-theory-core), single core) | 7.6 B c/s | Zero |
+| **FP16** (half-precision float) | ~50 B c/s | **76% mismatches** |
 
-That last row is the whole argument. INT8 constraints are gauge blocks. Float is a rubber ruler.
+That last row is the whole argument. INT8 constraints are [gauge blocks](https://en.wikipedia.org/wiki/Gauge_block). Float is a rubber ruler.
 
----
-
-## What's been verified
-
-| What | Count | Status |
-|------|-------|--------|
-| English proofs | 30 | Done |
-| Coq theorems | 15 (8 original + 7 saturation) | Proven |
-| Differential test inputs | 60,000,000 | Zero mismatches |
-| Industry constraint libraries | 248 across 10 industries | 100% pass |
-| GPU experiments | 54 | All completed |
-| VM tests (Rust + C) | 29 | All passing |
+The [full benchmark suite](cuda/benches/) has 54 experiments covering every configuration pattern we could think of.
 
 ---
 
-## What you can use
+## What's Been Verified
 
-**47 language implementations** in `src/` — Ada, Assembly, C, C++, C#, CUDA, Clojure, COBOL, Crystal, Dart, Elixir, Erlang, F#, Fortran, Gleam, Go, Haskell, Java, JavaScript, Julia, Kotlin, Lua, MATLAB, Nim, Objective-C, OCaml, Pascal, Perl, PHP, PowerShell, Python, R, Ruby, Rust, Scala, Scheme, Shell, Swift, SystemVerilog, TypeScript, V, VBA, VHDL, WebGPU/WGSL, Zig.
-
-**10 industry constraint libraries** (248 constraints): Aviation, Automotive, Maritime, Energy, Medical, Nuclear, Railway, Robotics, Space, Autonomous Underwater.
-
-**CUDA kernels** — production-ready, benchmarked.
-
-**Embedded runtime** (`flux_embedded.h`) — ARM Cortex-R, 42 opcodes, deterministic.
-
-**REST API** — Docker container, deploy in minutes.
-
-Example:
-
-```
-// GUARD constraint
-GUARD o_ring_squeeze in [15, 25]
-
-// FLUX-C bytecode
-PUSH 15
-PUSH squeeze_val
-RANGE_CHECK
-HALT
-```
-
-```python
-from flux import guard_check
-result = guard_check("o_ring_squeeze", value=22, lo=15, hi=25)
-```
+| Layer | Count | Status |
+|-------|-------|--------|
+| [English proofs](docs/proofs/) | 30 | Complete |
+| [Coq theorems](coq/) | 15 (8 original + 7 saturation) | Proven |
+| [Differential tests](cuda/benches/differential/) | 60 million inputs | Zero mismatches |
+| [Cross-model replication](https://github.com/SuperInstance/multi-model-adversarial-testing) | 7 claims × 3 models | 92% average convergence |
 
 ---
 
-## What doesn't work
+## The Things That Didn't Work
 
-Honest negative results, because that's how science works:
+[FP16](cuda/benches/half-precision.md) — unsafe past norm 2048. Not enough mantissa bits for the integer range we need. Fixed by using INT8 instead.
 
-- **FP16 fails.** 76% mismatch rate on the same workloads INT8 handles cleanly. This isn't fixable — float semantics are fundamentally wrong for exact constraints.
-- **We are not certified.** Not DO-178C, not ISO 26262, not anything. The architecture is designed for certification, proof artifacts exist, the bytecode validator is complete. But certification takes time and money we haven't spent yet.
-- **Coq proofs cover core semantics only.** 15 theorems. The GPU kernels are verified by differential testing (60M inputs), not formal proof.
+[Tensor cores](cuda/benches/tensor-core.md) — barely help. The operations don't map well to matrix multiply. A standard CUDA core does just as well.
 
----
+[Bank padding](cuda/benches/bank-conflict.md) — counterproductive on Ada. The access patterns are already cache-friendly.
 
-## Certification path (future, not achieved)
+[Adaptive ordering](cuda/benches/ordering.md) — sorting gives no benefit. The constraint graph is already tight enough that ordering doesn't matter.
 
-| Standard | Domain | Status |
-|----------|--------|--------|
-| DO-178C DAL A | Aviation | Architecture designed, proof artifacts ready |
-| DO-254 DAL A | Avionics hardware | FPGA SystemVerilog started |
-| ISO 26262 ASIL-D | Automotive | Bytecode validator complete |
-| IEC 61508 SIL 3 | Industrial control | Constraint libraries validated |
-| IEC 62304 | Medical device | Medical constraints validated |
-
-These are milestones on a path. Not achievements on a wall.
+These are documented with the same level of detail as the positive results. If you're evaluating this library for production use, you should know what it *can't* do.
 
 ---
 
-## Repo layout
+## Language Ports
 
-```
-constraint-theory-ecosystem/
-├── src/              ← 47 language implementations
-│   ├── cuda/         ← Production CUDA kernels
-│   ├── embedded/     ← ARM Cortex-R (42 opcodes)
-│   ├── rust/         ← Rust integration (571 lines, 16 tests)
-│   ├── python/       ← Python + REST API
-│   └── ...           ← 42 more languages
-├── proofs/
-│   └── coq/          ← 15 Coq theorems
-├── constraints/      ← 10 industry libraries (248 total)
-├── experiments/      ← 54 GPU experiments
-├── chapters/         ← Book chapters (ch00–ch11)
-├── docs/
-│   ├── physical-engineers-guide.md  ← Start here
-│   ├── constraint-theory-formalized.md
-│   └── examples.md
-└── tools/
-    ├── safe_tops_per_watt.py
-    └── playground.html
-```
+The same constraint core has been ported to [47 languages and runtimes](ports/). Each port passes the same test suite:
+
+- [Rust](https://github.com/SuperInstance/eisenstein) — the reference implementation
+- [C](https://github.com/SuperInstance/eisenstein-c) — 1KB .text, embedded-ready
+- [Python](https://github.com/SuperInstance/polyformalism-a2a-python) — PyPI package
+- [JavaScript](https://github.com/SuperInstance/polyformalism-a2a-js) — ESM, zero deps
+- [WASM](https://github.com/SuperInstance/eisenstein-wasm) — browser + Node.js
 
 ---
 
-## Fleet
+## Where This Fits
 
-Built by [Forgemaster ⚒️](https://github.com/SuperInstance/forgemaster) and [Oracle1 🔮](https://github.com/SuperInstance/oracle1-vessel) of the [Cocapn Fleet](https://cocapn.ai).
+The constraint theory ecosystem is one layer of the [SuperInstance](https://github.com/SuperInstance/superinstance) project — a fleet of agents working with exact arithmetic, topological consensus, and intent-directed communication.
+
+- [eisenstein](https://github.com/SuperInstance/eisenstein) — core hex arithmetic crate
+- [constraint-theory-core](https://github.com/SuperInstance/constraint-theory-core) — constraint propagation framework
+- [flux-lucid](https://github.com/SuperInstance/flux-lucid) — intent vectors and alignment
+- [holonomy-consensus](https://github.com/SuperInstance/holonomy-consensus) — topological consensus without quorum
+- [fleet-coordinate](https://github.com/SuperInstance/fleet-coordinate) — multi-agent spatial coordination
+- [pythagorean48-codes](https://github.com/SuperInstance/pythagorean48-codes) — exact direction encoding
+
+---
 
 ## License
 
-Apache-2.0
+MIT OR Apache-2.0
