@@ -1,5 +1,15 @@
 # Constraint Theory Ecosystem
 
+
+## Meta
+
+**Domain:** constraint-theory
+**Depends on:** —
+**Depended by:** fleet-manifest, fleet-spread
+**Implements:** constraint-framework, tolerance-stacks
+**Related:** constraint-theory-core, flux-vm, flux-lucid
+
+
 **54 GPU experiments. 47 language ports. 60 million differential test inputs with zero mismatches. All the code, all the numbers, all the things that didn't work.**
 
 This is the engineering record for the constraint theory project — the CUDA benchmarks on real hardware, the Coq proofs of core semantics, the cross-language ports, and the honest negative results that tell you where this thing still has rough edges.
