@@ -171,6 +171,26 @@ GUARD RATE_OF_CHANGE(temperature, 5)
 
 ---
 
+## Ecosystem Repos
+
+| Repo | Role |
+|------|------|
+| [constraint-theory-core](https://github.com/SuperInstance/constraint-theory-core) | Rust library (crates.io) |
+| [constraint-theory-llvm](https://github.com/SuperInstance/constraint-theory-llvm) | AVX-512 + Cranelift JIT compilation |
+| [constraint-theory-math](https://github.com/SuperInstance/constraint-theory-math) | Sheaf cohomology + Heyting + GL(9) proofs |
+| [dodecet-encoder](https://github.com/SuperInstance/dodecet-encoder) | 12-bit constraint state + temporal intelligence |
+| [holonomy-consensus](https://github.com/SuperInstance/holonomy-consensus) | Zero-holonomy fleet consensus |
+| [flux-lucid](https://github.com/SuperInstance/flux-lucid) | Intent-directed ecosystem orchestrator |
+| [eisenstein](https://github.com/SuperInstance/eisenstein) | Core hex integer library |
+| [eisenstein-c](https://github.com/SuperInstance/eisenstein-c) | C port for microcontrollers |
+| [eisenstein-wasm](https://github.com/SuperInstance/eisenstein-wasm) | Browser/Node.js port |
+| [eisenstein-bench](https://github.com/SuperInstance/eisenstein-bench) | Cross-implementation benchmarks |
+| [eisenstein-fuzz](https://github.com/SuperInstance/eisenstein-fuzz) | Property-based fuzzing |
+| [eisenstein-do178c](https://github.com/SuperInstance/eisenstein-do178c) | Formal verification artifacts |
+| [pythagorean48-codes](https://github.com/SuperInstance/pythagorean48-codes) | 48 exact directional codes |
+
+---
+
 ## Fleet Coordination
 
 This monorepo is built by [Forgemaster ⚒️](https://github.com/SuperInstance/forgemaster) and [Oracle1 🔮](https://github.com/SuperInstance/oracle1-vessel) of the [Cocapn Fleet](https://cocapn.ai).
