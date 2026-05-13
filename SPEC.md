@@ -94,3 +94,42 @@ Try it live at [cocapn.ai/certify](https://cocapn.ai/certify)
 - **crates/guard-lang** — GUARD DSL parser + compiler
 - **crates/flux-vm** — FLUX-C reference VM
 - **Live at:** [cocapn.ai/certify](https://cocapn.ai/certify)
+
+---
+
+## Simulation-First Protocol (v2)
+
+Every constraint check is now a prediction. Before computing, predict the result. If the prediction confirms, skip the compute.
+
+```
+predict → compute (only if needed) → confirm → supersede if wrong
+```
+
+This gives ~95% reduction in PLATO writes when predictions confirm. Only surprises generate new tiles.
+
+### Tile Lifecycle
+
+Every constraint tile has a lifecycle:
+- **Active** — current, used in consensus
+- **Superseded** — replaced by newer data, excluded from active retrieval
+- **Retracted** — withdrawn (error, drift), excluded from all queries
+
+Supersession ≠ deletion. Old data persists but is strategically forgotten.
+
+### Lamport Clocks
+
+All tiles carry Lamport timestamps for causal ordering across distributed agents. When two agents write to the same room, their clocks are merged to establish happened-before ordering.
+
+### Implementation Status
+
+- ✅ PLATO Room Server v3 (75/75 tests)
+- ✅ folding-order v0.3.0 — simulation-first anomaly detection
+- ✅ plato-sdk v3.0.0 — tile lifecycle client
+- ✅ fleet-memory v0.2.0 — lifecycle-aware distributed memory
+- ✅ holonomy-consensus v0.2.0 — trust tile lifecycle
+- ✅ constraint-flow-protocol v2 — CFP v2 spec
+- ✅ penrose-memory v1.1.0 — prediction before recall
+- ✅ flux-lucid v0.3.0 — simulation-first intent alignment
+- ✅ dodecet-encoder v1.2.0 — agent lifecycle + predict_gate
+- ✅ constraint-inference v0.2.0 — prediction before constraint update
+- ✅ intent-inference v0.2.0 — goal engagement prediction
