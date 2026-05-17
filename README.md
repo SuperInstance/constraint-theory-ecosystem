@@ -10,7 +10,7 @@
 **Related:** constraint-theory-core, flux-vm, flux-lucid
 
 
-**54 GPU experiments. 47 language ports. 60 million differential test inputs with zero mismatches. All the code, all the numbers, all the things that didn't work.**
+**14 test suites. 2 Coq proof files. 60 million differential test inputs with zero mismatches. All the code, all the numbers, all the things that didn't work.**
 
 This is the engineering record for the constraint theory project — the CUDA benchmarks on real hardware, the Coq proofs of core semantics, the cross-language ports, and the honest negative results that tell you where this thing still has rough edges.
 
@@ -47,7 +47,7 @@ FLUX-C Bytecode    ← Compile to 43-opcode ISA (terminates, always)
     ↓
 GPU / ARM / FPGA   ← Execute at hardware speed
     ↓
-Coq Proofs         ← 15 theorems cover core semantics
+Coq Proofs         ← Formal proofs of core semantics (2 proof files, ongoing)
 ```
 
 New here? The [Physical Engineer's Guide](docs/physical-engineers-guide.md) teaches the whole system in fifteen minutes using O-rings and tolerance stacks. No code required.
