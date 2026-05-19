@@ -239,6 +239,7 @@ static inline void flux_preset_energy_scada(FluxExact* fc) {
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <assert.h>
 
 static double now_sec(void) {
     struct timespec ts;
@@ -279,6 +280,7 @@ static void bench_avx2(const FluxExact* fc, int iters) {
 }
 #endif
 
+#ifndef FLUX_EXACT_NO_MAIN
 int main(void) {
     printf("=== FLUX Exact Constraint Engine — C Benchmark ===\n\n");
 
@@ -316,3 +318,4 @@ int main(void) {
 }
 
 #endif /* FLUX_EXACT_IMPL */
+#endif
