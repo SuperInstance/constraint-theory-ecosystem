@@ -261,9 +261,12 @@ class TestProofCertificateChain:
         # The proof log should have entries
         assert log.size == 1
 
-        # Verify the log is valid
-        valid = log.verify()
+        # Verify the entry is valid via Merkle proof
+        valid = log.verify_entry(0)
         assert valid is True
+
+        # Root hash should exist
+        assert log.root_hash != ""
 
     def test_formal_proof_wellformed(self):
         from flux_formal import Severity as FormalSeverity

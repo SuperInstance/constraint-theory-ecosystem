@@ -5,7 +5,7 @@
 
 mod checker;
 
-use checker::{JitChecker, Severity, all_presets};
+use checker::{JitChecker, all_presets};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -170,8 +170,8 @@ fn main() {
 
 fn build_checker(cli: &Cli) -> Result<JitChecker, String> {
     match (&cli.preset, &cli.custom_bounds) {
-        (Some(preset), None) => JitChecker::from_preset(preset),
-        (None, Some(bounds)) => JitChecker::from_pairs(bounds),
+        (Some(preset), None) => JitChecker::from_preset(preset).map_err(|e| e.to_string()),
+        (None, Some(bounds)) => JitChecker::from_pairs(bounds).map_err(|e| e.to_string()),
         (Some(_), Some(_)) => {
             Err("cannot specify both --preset and --bounds".into())
         }
@@ -236,8 +236,9 @@ fn run_single_check(checker: &JitChecker, value: f64, cli: &Cli) {
             tool: "flux-check 0.1.0".into(),
         };
 
+        let default_path = PathBuf::from("proof.json");
         let output_path = cli.output.as_deref().unwrap_or_else(|| {
-            PathBuf::from("proof.json")
+            &default_path
         });
         let json = serde_json::to_string_pretty(&cert).unwrap();
         fs::write(output_path, &json).expect("failed to write proof file");
@@ -324,7 +325,7 @@ fn run_csv_batch(checker: &JitChecker, csv_path: &PathBuf, column: &Option<Strin
             let mut found = None;
             for (i, h) in headers.iter().enumerate() {
                 // Try parsing first data row
-                if let Ok(Some(record)) = reader.records().next() {
+                if let Some(Ok(record)) = reader.records().next() {
                     if record.get(i).and_then(|v| v.parse::<f64>().ok()).is_some() {
                         found = Some(i);
                         break;
@@ -512,7 +513,7 @@ fn generate_wasm(preset: &str, lo: &[f64], hi: &[f64], n: usize) -> String {
     s
 }
 
-fn generate_rust(preset: &str, lo: &[f64], hi: &[f64], n: usize, names: &[(f64, f64, &str)]) -> String {
+fn generate_rust(preset: &str, lo: &[f64], hi: &[f64], n: usize, _names: &[(f64, f64, &str)]) -> String {
     let mut s = String::new();
     s.push_str("//! FLUX constraint checker — ");
     s.push_str(preset);

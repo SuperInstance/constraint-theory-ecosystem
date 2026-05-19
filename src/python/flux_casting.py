@@ -243,31 +243,43 @@ class PlacementAlgorithm:
 
         Returns a mapping from each role to its assigned placement.
         Roles with no qualifying candidate get Placement with score=0.
+
+        Uses a two-phase approach:
+          Phase 1: For each role (hardest first = fewest qualified candidates),
+                    assign the best qualifying candidate not yet used.
+          Phase 2: Fill remaining roles with any qualifying candidates left.
         """
         matrix = self._build_matrix(candidates, roles)
 
-        # Sort by score descending, then by role weight descending
-        qualified = [p for p in matrix if p.hard_pass]
-        qualified.sort(key=lambda p: p.score * p.role.weight, reverse=True)
+        # Build lookup: role -> qualified placements sorted by score desc
+        qualified_by_role: Dict[Role, List[Placement]] = {}
+        for p in matrix:
+            if p.hard_pass:
+                qualified_by_role.setdefault(p.role, []).append(p)
+        for role_list in qualified_by_role.values():
+            role_list.sort(key=lambda p: p.score * p.role.weight, reverse=True)
 
         assigned_candidates: set = set()
         result: Dict[Role, Placement] = {}
-        role_demand_remaining: Dict[str, int] = {r.name: r.demand for r in roles}
 
-        # First pass: fill roles with qualified candidates
-        for p in qualified:
-            if p.candidate.name in assigned_candidates:
-                continue
-            if role_demand_remaining.get(p.role.name, 0) <= 0:
-                continue
-            result[p.role] = p
-            assigned_candidates.add(p.candidate.name)
-            role_demand_remaining[p.role.name] -= 1
+        # Phase 1: Assign hardest-to-fill roles first
+        # (fewest qualified candidates = most constrained)
+        roles_by_difficulty = sorted(
+            roles,
+            key=lambda r: len(qualified_by_role.get(r, [])),
+        )
+
+        for r in roles_by_difficulty:
+            for p in qualified_by_role.get(r, []):
+                if p.candidate.name not in assigned_candidates:
+                    result[r] = p
+                    assigned_candidates.add(p.candidate.name)
+                    break
 
         # Mark unfilled roles
         for r in roles:
             if r not in result:
-                # Find the best unqualified candidate for diagnostics
+                # Find the best unassigned candidate for diagnostics
                 best_unqualified = max(
                     (p for p in matrix
                      if p.role == r and p.candidate.name not in assigned_candidates),

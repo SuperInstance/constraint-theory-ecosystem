@@ -3,7 +3,9 @@ name = "flux-check"
 version = "0.1.0"
 edition = "2021"
 description = "FLUX constraint theory CLI — zero-overhead constraint checking with proof certificates"
-authors = ["Forgemaster ⚒️ <forgemaster@superinstance>"]
+authors = ["Forgemaster <forgemaster@superinstance>"]
+
+[workspace]
 
 [[bin]]
 name = "flux-check"
