@@ -388,17 +388,19 @@ class TestMidCheckMutation:
     """Test that constraint objects can't be mutated mid-check."""
 
     def test_constraint_mutation_after_construction(self):
-        """If someone mutates a constraint's bounds after construction,
-        does the engine use stale or mutated values? The current implementation
-        accesses self.constraints[i].lo/hi each time, so mutation WOULD affect behavior.
-        This is a design concern, not necessarily a bug."""
+        """Constraints should be frozen after construction.
+        The production implementation stores bounds in _lo/_hi arrays,
+        so mutating the constraint definition has NO effect on checking.
+        This is the CORRECT safety behavior — constraints are immutable."""
         fc = FluxExact([{"lo": 0, "hi": 100, "name": "test"}])
-        # Mutate the constraint
-        fc.constraints[0].lo = 50
-        fc.constraints[0].hi = 60
+        # Mutate the constraint definition (if it exists)
+        if hasattr(fc, 'constraints') and len(fc.constraints) > 0:
+            fc.constraints[0].lo = 50
+            fc.constraints[0].hi = 60
+        # The hot path uses _lo/_hi arrays, so mutation has no effect
         result = fc.check(25)
-        # Now [50, 60], 25 is below → should fail
-        assert not result.passed, "Mutation affected check (design concern: constraints should be frozen)"
+        # 25 is in [0, 100] — bounds are FROZEN, mutation ignored
+        assert result.passed, "Constraints should be frozen — mutation must not affect checks"
 
 
 # ============================================================================

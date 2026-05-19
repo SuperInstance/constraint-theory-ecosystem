@@ -5,10 +5,13 @@ Tests FLUX constraint engine against IoT sensor constraints.
 """
 import sys
 import os
+import sys
 import random
 import math
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src', 'python'))
+sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from flux_scaling import ScaledConstraint, run_benchmark, BenchmarkResult
 
 # IoT sensor constraints
