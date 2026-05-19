@@ -214,10 +214,21 @@ class FluxExact:
         result = ExactResult()
         violated = 0
 
+        # IEEE 754: NaN comparisons always return False.
+        # NaN < lo is False, NaN > hi is False → passes silently.
+        # This is a FALSE NEGATIVE. We must catch NaN explicitly.
+        is_nan = val != val  # IEEE 754 NaN test — only NaN != NaN is True
+
         for i, c in enumerate(self.constraints):
-            lo_fail = val < c.lo
-            hi_fail = val > c.hi
-            passed = not lo_fail and not hi_fail
+            if is_nan:
+                # NaN violates ALL constraints — both lo and hi
+                lo_fail = True
+                hi_fail = True
+                passed = False
+            else:
+                lo_fail = val < c.lo
+                hi_fail = val > c.hi
+                passed = not lo_fail and not hi_fail
 
             if not passed:
                 result.error_mask |= (1 << i)
