@@ -223,6 +223,11 @@ class SedimentStack:
         layers_applied: List[int] = []
         corrections_applied = 0
 
+        # Track accumulated bounds from corrections so each layer builds on prior layers
+        accumulated_bounds: Dict[str, Tuple[float, float]] = {}
+        if constraint_defs:
+            accumulated_bounds = dict(constraint_defs)  # start with original bounds
+
         for layer in self._layers:
             if layer.superseded:
                 continue
@@ -247,9 +252,14 @@ class SedimentStack:
                         current_mask |= bit
                         modified = True
                 elif constraint_defs and correction.constraint_name in constraint_defs:
-                    # Bounds-based correction
-                    orig_lo, orig_hi = constraint_defs[correction.constraint_name]
+                    # Bounds-based correction — apply to accumulated bounds
+                    orig_lo, orig_hi = accumulated_bounds.get(
+                        correction.constraint_name,
+                        constraint_defs[correction.constraint_name],
+                    )
                     new_lo, new_hi, _ = correction.apply_to(orig_lo, orig_hi, not is_violated)
+                    # Update accumulated bounds for future layers
+                    accumulated_bounds[correction.constraint_name] = (new_lo, new_hi)
                     val = values.get(correction.constraint_name, 0.0)
                     in_new_bounds = (new_lo <= val <= new_hi)
                     if is_violated and in_new_bounds:
