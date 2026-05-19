@@ -10,7 +10,7 @@
 **Related:** constraint-theory-core, flux-vm, flux-lucid
 
 
-**64 language implementations. 14+ test suites. 2 Coq proof files. 60 million differential test inputs with zero mismatches.**
+**81 language implementations. 14+ test suites. 2 Coq proof files. 60 million differential test inputs with zero mismatches.**
 
 This is the engineering record for the constraint theory project — the CUDA benchmarks on real hardware, the Coq proofs of core semantics, the cross-language ports, and the honest negative results that tell you where this thing still has rough edges.
 
@@ -102,7 +102,7 @@ These are documented with the same level of detail as the positive results. If y
 
 ## Language Ports
 
-The same constraint core has been ported to **64 languages and runtimes** ([full catalog → PORTS.md](PORTS.md)). The [GUARD DSL](src/guard/flux_constraint.guard) is the source of truth — all other ports are translations of that specification into host syntax.
+The same constraint core has been ported to **81 languages and runtimes** ([full catalog → PORTS.md](PORTS.md)). The [GUARD DSL](src/guard/flux_constraint.guard) is the source of truth — all other ports are translations of that specification into host syntax.
 
 ### Highlights by Era
 

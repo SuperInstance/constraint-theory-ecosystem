@@ -1,6 +1,6 @@
 # PORTS.md — FLUX Constraint Engine Language Catalog
 
-**64 languages. 8 paradigms. 57 years of language design. Same API. Same results. Zero mismatches.**
+**81 languages. 8 paradigms. 57 years of language design. Same API. Same results. Zero mismatches.**
 
 Every implementation shares the same core: INT8 saturated constraint checking, 8 constraints max per sensor, severity escalation (PASS → CAUTION → WARNING → CRITICAL), error masks, and 10 industry presets. Zero dependencies.
 
