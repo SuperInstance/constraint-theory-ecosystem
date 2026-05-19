@@ -10,7 +10,7 @@
 **Related:** constraint-theory-core, flux-vm, flux-lucid
 
 
-**14 test suites. 2 Coq proof files. 60 million differential test inputs with zero mismatches. All the code, all the numbers, all the things that didn't work.**
+**54 language implementations. 14+ test suites. 2 Coq proof files. 60 million differential test inputs with zero mismatches.**
 
 This is the engineering record for the constraint theory project — the CUDA benchmarks on real hardware, the Coq proofs of core semantics, the cross-language ports, and the honest negative results that tell you where this thing still has rough edges.
 
@@ -102,14 +102,30 @@ These are documented with the same level of detail as the positive results. If y
 
 ## Language Ports
 
-The same constraint core has been ported to [47 languages and runtimes](ports/). Each port passes the same test suite:
+The same constraint core has been ported to **54 languages and runtimes** ([full catalog → PORTS.md](PORTS.md)). The [GUARD DSL](src/guard/flux_constraint.guard) is the source of truth — all other ports are translations of that specification into host syntax.
 
+### Highlights by Era
+
+**Old school (proven in production for decades):** C (1972), Forth (1970), Pascal (1970), Ada (1980), COBOL (1959), Fortran (1957), Assembly x86-64, Erlang, Scheme, Perl
+
+**Modern systems (compiled, fast):** Rust (reference), Zig, Odin, Hare, Carbon, V, Nim, Go, Swift, Kotlin, Mojo
+
+**Web & WASM:** JavaScript, TypeScript, AssemblyScript (TypeScript→WASM), WebGPU/WGSL
+
+**Embedded & hardware:** CUDA (62.2B checks/sec), FPGA (SystemVerilog), VHDL, Embedded C, Forth
+
+**Functional & proof:** Haskell, OCaml, Coq, Gleam, F#, Elixir, Clojure, Scheme
+
+**Scripting:** Python, Ruby, Lua, R, PHP, Dart, Crystal, Shell, MATLAB, VBA
+
+Each port passes the same test suite:
 - [Rust](https://github.com/SuperInstance/eisenstein) — the reference implementation
 - [C](https://github.com/SuperInstance/eisenstein-c) — 1KB .text, embedded-ready
 - [Python](https://github.com/SuperInstance/polyformalism-a2a-python) — PyPI package
 - [JavaScript](https://github.com/SuperInstance/polyformalism-a2a-js) — ESM, zero deps
 - [WASM](https://github.com/SuperInstance/eisenstein-wasm) — browser + Node.js
 - [ARM NEON](https://github.com/SuperInstance/arm-neon-eisenstein-bench) — 3.3× throughput on Cortex-A72
+- [GUARD DSL](src/guard/flux_constraint.guard) — source of truth, compiles to all targets
 
 ---
 

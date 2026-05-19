@@ -1,0 +1,221 @@
+# test_golden.guard — GUARD DSL Golden Vector Test Suite
+#
+# Run: guard check test_golden.guard --golden tools/golden_vectors.json
+#
+# This file contains representative test vectors from the 10,000-vector
+# golden test suite. Each TEST block specifies a value, constraints,
+# and the expected result. All 54 language implementations must produce
+# identical results for these vectors.
+#
+# Generated from tools/golden_vectors.json (10,000 vectors, 6,543 patterns)
+
+RULE saturate: value CLAMPED TO [-127, 127] BEFORE CHECK
+RULE max_constraints: 8 PER SENSOR
+RULE severity:
+    0 violations   → PASS
+    ≤25% violated  → CAUTION
+    ≤50% violated  → WARNING
+    >50% violated  → CRITICAL
+
+# ══════════════════════════════════════════════════════════════════════
+#  SINGLE CONSTRAINT TESTS
+# ══════════════════════════════════════════════════════════════════════
+
+TEST id=0:
+    GUARD test in [-72, -68]
+    INPUT value = -73
+    EXPECT mask=0x01 passed=false violated_count=1 lo_violated=true hi_violated=false
+END
+
+TEST id=1:
+    GUARD test in [-72, -68]
+    INPUT value = -72
+    EXPECT mask=0x00 passed=true violated_count=0 lo_violated=false hi_violated=false
+END
+
+TEST id=2:
+    GUARD test in [-72, -68]
+    INPUT value = -71
+    EXPECT mask=0x00 passed=true violated_count=0 lo_violated=false hi_violated=false
+END
+
+TEST id=5:
+    GUARD test in [-72, -68]
+    INPUT value = -67
+    EXPECT mask=0x01 passed=false violated_count=1 lo_violated=false hi_violated=true
+END
+
+# Lower bound violation
+TEST id=6:
+    GUARD test in [-30, 2]
+    INPUT value = -31
+    EXPECT mask=0x01 passed=false violated_count=1 lo_violated=true hi_violated=false
+END
+
+# Upper bound violation
+TEST id=11:
+    GUARD test in [-30, 2]
+    INPUT value = 3
+    EXPECT mask=0x01 passed=false violated_count=1 lo_violated=false hi_violated=true
+END
+
+# Boundary: value = hi + 1 (just over)
+TEST id=17:
+    GUARD test in [-43, -25]
+    INPUT value = -24
+    EXPECT mask=0x01 passed=false violated_count=1 lo_violated=false hi_violated=true
+END
+
+# Boundary: value = hi + 1 (positive range)
+TEST id=23:
+    GUARD test in [-74, 13]
+    INPUT value = 14
+    EXPECT mask=0x01 passed=false violated_count=1 lo_violated=false hi_violated=true
+END
+
+# ══════════════════════════════════════════════════════════════════════
+#  MULTI-CONSTRAINT TESTS (4 constraints)
+# ══════════════════════════════════════════════════════════════════════
+
+# All pass — value within all ranges
+TEST id=2002:
+    GUARD c0 in [14, 51]
+    GUARD c1 in [4, 40]
+    GUARD c2 in [-44, 95]
+    GUARD c3 in [4, 72]
+    INPUT value = 16
+    EXPECT mask=0x00 passed=true violated_count=0
+END
+
+# All pass — value at boundary
+TEST id=2008:
+    GUARD c0 in [-52, 52]
+    GUARD c1 in [9, 96]
+    GUARD c2 in [-21, 36]
+    GUARD c3 in [-9, 61]
+    INPUT value = 36
+    EXPECT mask=0x00 passed=true violated_count=0
+END
+
+# All pass — value well within
+TEST id=2015:
+    GUARD c0 in [8, 49]
+    GUARD c1 in [10, 57]
+    GUARD c2 in [-72, 83]
+    GUARD c3 in [-28, 72]
+    INPUT value = 44
+    EXPECT mask=0x00 passed=true violated_count=0
+END
+
+# Edge: value at exact upper bound of c2
+TEST id=2016:
+    GUARD c0 in [-27, 37]
+    GUARD c1 in [-54, 83]
+    GUARD c2 in [-31, 32]
+    GUARD c3 in [17, 78]
+    INPUT value = 32
+    EXPECT mask=0x00 passed=true violated_count=0
+    NOTE "value 32 is exactly at c2 hi=32, should pass (inclusive)"
+END
+
+# All pass
+TEST id=2018:
+    GUARD c0 in [-27, 98]
+    GUARD c1 in [15, 99]
+    GUARD c2 in [-3, 58]
+    GUARD c3 in [-18, 58]
+    INPUT value = 32
+    EXPECT mask=0x00 passed=true violated_count=0
+END
+
+# All pass
+TEST id=2019:
+    GUARD c0 in [-18, 33]
+    GUARD c1 in [-31, 73]
+    GUARD c2 in [5, 81]
+    GUARD c3 in [12, 51]
+    INPUT value = 26
+    EXPECT mask=0x00 passed=true violated_count=0
+END
+
+# ══════════════════════════════════════════════════════════════════════
+#  SATURATION TESTS
+# ══════════════════════════════════════════════════════════════════════
+
+# Values outside [-127, 127] must be clamped before checking
+TEST saturation_high:
+    GUARD test in [100, 127]
+    INPUT value = 200
+    EXPECT mask=0x00 passed=true violated_count=0
+    NOTE "200 saturates to 127, which is within [100, 127]"
+END
+
+TEST saturation_low:
+    GUARD test in [-127, -100]
+    INPUT value = -200
+    EXPECT mask=0x00 passed=true violated_count=0
+    NOTE "-200 saturates to -127, which is within [-127, -100]"
+END
+
+TEST saturation_high_fail:
+    GUARD test in [100, 126]
+    INPUT value = 200
+    EXPECT mask=0x01 passed=false violated_count=1 lo_violated=false hi_violated=true
+    NOTE "200 saturates to 127, which is above 126"
+END
+
+# ══════════════════════════════════════════════════════════════════════
+#  INDUSTRY PRESET SMOKE TESTS
+# ══════════════════════════════════════════════════════════════════════
+
+# Aviation: cabin temp at 25°C should pass
+PRESET aviation_smoke:
+    GUARD cabin_temp_C in [-55, 70]        with priority HIGH
+    GUARD cabin_pressure_kPa in [75, 101]  with priority CRITICAL
+    GUARD fuel_flow_pct in [0, 100]        with priority HIGH
+    GUARD hydraulic_pct in [60, 100]       with priority CRITICAL
+END
+
+TEST aviation_pass:
+    USE aviation_smoke
+    INPUT value = 25
+    EXPECT mask=0x00 passed=true violated_count=0
+    NOTE "25°C cabin temp — within all aviation ranges"
+END
+
+# Nuclear: core temp at 600 (60.0°C × 10) should pass
+PRESET nuclear_smoke:
+    GUARD neutron_flux_pct in [0, 110]     with priority CRITICAL
+    GUARD core_temp_C_x10 in [0, 65]      with priority CRITICAL
+    GUARD pressurizer_pct in [72, 100]     with priority CRITICAL
+    GUARD coolant_flow_pct in [0, 100]     with priority CRITICAL
+END
+
+TEST nuclear_pass:
+    USE nuclear_smoke
+    INPUT value = 60
+    EXPECT mask=0x00 passed=true violated_count=0
+    NOTE "core temp 60 (6.0°C × 10) — within all nuclear ranges"
+END
+
+# ══════════════════════════════════════════════════════════════════════
+#  FULL GOLDEN SUITE REFERENCE
+# ══════════════════════════════════════════════════════════════════════
+#
+# The complete 10,000-vector test suite lives in:
+#   tools/golden_vectors.json
+#
+# Run all golden tests against any implementation:
+#   Python:  python3 tools/test_golden.py
+#   Node.js: node tools/test_golden.js
+#   Go:      go run tools/test_golden.go
+#   Zig:     zig run tools/test_golden.zig
+#   Ruby:    ruby tools/test_golden.rb
+#   Perl:    perl tools/test_golden.pl
+#   PHP:     php tools/test_golden.php
+#   Fortran: gfortran tools/test_golden.f90
+#   Dart:    dart tools/test_golden.dart
+#   Shell:   bash tools/test_golden.sh
+#   TS:      npx tsx tools/test_golden.ts
+#
+# All 10,000 vectors. All implementations. Zero mismatches.

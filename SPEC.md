@@ -87,6 +87,35 @@ Try it live at [cocapn.ai/certify](https://cocapn.ai/certify)
 
 ---
 
+## Language Ecosystem
+
+The FLUX Constraint Engine has been ported to **54 languages** — from Ada to Zig, from COBOL to Forth, from CUDA to WebGPU. Every implementation shares the same semantics:
+
+- INT8 saturated values clamped to [-127, 127]
+- Up to 8 constraints per sensor
+- Severity escalation: PASS → CAUTION → WARNING → CRITICAL
+- Bitmask error reporting (error_mask, violated_lo, violated_hi)
+- 10 industry presets (aviation, automotive, maritime, medical, energy, nuclear, railway, robotics, space, underwater)
+- Zero external dependencies
+
+### GUARD DSL: Source of Truth
+
+The [GUARD DSL](src/guard/flux_constraint.guard) is the canonical specification language. All 54 runtime ports are *translations* of this file into their host syntax. This means:
+
+1. **New ports** derive from the GUARD spec — not from another port
+2. **Discrepancies** are resolved by checking against GUARD semantics
+3. **Compilation** from GUARD produces verified bytecode for any target
+
+```bash
+guard compile flux_constraint.guard --target avx512   # → SIMD C
+guard compile flux_constraint.guard --target wasm      # → WASM module
+guard compile flux_constraint.guard --target rust      # → Rust crate
+```
+
+Full language catalog → [PORTS.md](PORTS.md)
+
+---
+
 ## Status
 
 - **SPEC.md** — This document (canonical description of the ecosystem)

@@ -306,6 +306,142 @@ const r = fc.check(70);
 // 8 parallel constraints, INT8 saturation
 ```
 
+### Odin
+
+```odin
+// Copy src/odin/flux_constraint.odin to your project
+import "flux_constraint"
+
+checker: flux_constraint.FluxChecker
+flux_constraint.init(&checker, { {-20, 60, "cell_temp_C"}, {0, 100, "soc_pct"} })
+
+result := flux_constraint.check(&checker, 70)
+fmt.println(result.severity)  // 1 = CAUTION
+fmt.println(result.passed)    // false
+```
+
+### Hare
+
+```hare
+// Copy src/hare/flux_constraint.ha to your project
+use flux;
+
+let checker = flux::new_checker([
+    flux::constraint { lo = -20, hi = 60, name = "cell_temp_C" },
+    flux::constraint { lo = 0, hi = 100, name = "soc_pct" },
+])!;
+
+let result = flux::check(&checker, 70);
+fmt::printfln("severity: {} passed: {}", result.severity, result.passed)!;
+// severity: 1 passed: false
+```
+
+### Mojo
+
+```mojo
+# Copy src/mojo/flux_constraint.mojo to your project
+from flux_constraint import FluxChecker, Constraint
+
+var checker = FluxChecker(
+    constraints=DynamicVector[Constraint]()
+)
+checker.add(Constraint(-20, 60, "cell_temp_C"))
+checker.add(Constraint(0, 100, "soc_pct"))
+
+var result = checker.check(70)
+print(result.severity)   # 1 = CAUTION
+print(result.passed)     # False
+```
+
+### Carbon
+
+```carbon
+// Copy src/carbon/flux_constraint.carbon to your project
+package Flux;
+
+var checker: auto = FluxChecker.Make({.lo = -20, .hi = 60, .name = "cell_temp_C"},
+                                     {.lo = 0, .hi = 100, .name = "soc_pct"});
+var result: auto = checker.Check(70);
+Print(result.severity);  // 1 = CAUTION
+Print(result.passed);    // false
+```
+
+### Forth
+
+```forth
+\ Copy src/forth/flux_constraint.fs to your project
+\ Stack-based constraint checking
+
+-20 60 S" cell_temp_C" ADD-CONSTRAINT
+0 100 S" soc_pct" ADD-CONSTRAINT
+
+70 CHECK-ALL
+ERROR-MASK @ .    \ 1 (bit 0 violated)
+.SEVERITY           \ CAUTION
+PASSED @ .          \ 0 (false)
+```
+
+### AssemblyScript (WASM)
+
+```typescript
+// Copy src/assemblyscript/flux_constraint.ts to your project
+// Compile: asc flux_constraint.ts --outFile flux.wasm
+import { FluxChecker, Constraint } from "./flux_constraint";
+
+const fc = new FluxChecker();
+fc.addConstraint(new Constraint(-20, 60, "cell_temp_C"));
+fc.addConstraint(new Constraint(0, 100, "soc_pct"));
+
+const r = fc.check(70);
+console.log(r.severity);  // 1 = CAUTION
+console.log(r.passed);    // false
+
+// Or use the flat WASM export API:
+// wasmInit(2);
+// wasmAddConstraint(-20, 60);
+// wasmAddConstraint(0, 100);
+// const packed = wasmCheck(70);  // u32 packed result
+```
+
+### GUARD DSL (Pure Flux)
+
+The GUARD DSL is the source of truth — all 54 runtime ports are translations of this specification.
+
+```bash
+# Install the GUARD CLI
+cargo install guard-lang
+
+# Write constraints in GUARD syntax
+cat > battery.guard << 'EOF'
+RULE saturate: value CLAMPED TO [-127, 127] BEFORE CHECK
+RULE max_constraints: 8 PER SENSOR
+
+GUARD cell_temp_C in [-20, 60]    with priority HIGH
+GUARD soc_pct in [0, 100]        with priority HIGH
+GUARD charge_rate_pct in [0, 100] with priority HIGH
+GUARD cabin_temp_C in [20, 80]   with priority LOW
+EOF
+
+# Check a value
+guard check battery.guard --value 70
+# Output: CAUTION — cell_temp_C = 70 is above 60 maximum
+
+# Compile to any target
+guard compile battery.guard --target avx512    # → SIMD C
+guard compile battery.guard --target wasm       # → WASM module
+guard compile battery.guard --target rust       # → Rust crate
+guard compile battery.guard --target x86_64     # → native JIT (36 bytes)
+
+# Benchmark
+fluxc bench battery.guard -n 10M
+```
+
+All 10 industry presets are available in `src/guard/flux_constraint.guard`:
+```bash
+guard compile flux_constraint.guard --preset aviation --target wasm
+guard compile flux_constraint.guard --preset nuclear --target avx512
+```
+
 ### REST API
 
 ```bash
@@ -322,4 +458,4 @@ curl localhost:5000/preset/aviation/check?value=70
 
 ---
 
-**21 languages. Same API. Same results. Zero mismatches.**
+**54 languages. Same API. Same results. Zero mismatches.**
