@@ -1,189 +1,201 @@
 # Constraint Theory Ecosystem
 
-**An experimental constraint checking engine explored through 96 language implementations, 31 research modules, and real hardware benchmarks.**
+Research into exact numeric bounds checking — the math, the implementations, and the connections to other fields.
 
-Early-stage research. The math works. The benchmarks are real. The code runs. But this is a laboratory, not a product.
-
----
-
-## What This Is
-
-A system for checking whether sensor values, financial data, or any numeric stream falls within defined bounds — *exactly*, with zero false negatives, at hardware speed.
-
-The core insight: **compress the result, not the input.** Store bounds and values as original floats. The error mask is 1 bit per constraint (8 constraints = 1 byte). IEEE 754 monotonicity means float comparison is exact — the real enemy was INT8 quantization of the bounds themselves, not floating-point arithmetic.
-
-### What's Genuinely Novel
-
-1. **Zero false negatives, proven.** 61 adversarial tests including NaN, Inf, denormals, inverted constraints. The NaN trap (IEEE 754 makes NaN pass silently through all comparisons) was found and fixed. 6M test values, zero false negatives.
-
-2. **Predictive checking with zero false negatives.** Information theory module uses entropy-based anomaly detection to skip checks when confident — 500× speedup while maintaining exact safety. This is not approximation; it's *not checking when you don't need to*.
-
-3. **Constraint spaces are convex.** Topologically trivial, safe to parallelize, sheaf-compatible. The math proves what engineers intuit.
-
-4. **Binary constraint systems are ideal gases.** The partition function factorizes: Z = Πᵢ(1 + e^{-wᵢ/kT}). Each constraint contributes independently. This makes thermodynamic analysis analytically tractable — most physical systems aren't this clean.
-
-5. **Adaptive ordering converges in <1000 samples.** Bayesian violation probability tracking with 43% early pruning. The system learns which constraints are most likely to fail and checks those first.
-
-6. **Kalman prediction catches violations 1-2 samples early.** Signal processing insight for streaming sensor data.
-
-7. **96 language implementations.** Each language contributed an insight that shaped the VM design: stack-based from Forth, content-addressing from Unison, effect handlers from Koka.
-
-### What's Real (Benchmarks on Real Hardware)
-
-All benchmarks on AMD Ryzen AI 9 HX 370 (Zen 5), WSL2 Ubuntu.
-
-| Implementation | Throughput | Notes |
-|---------------|-----------|-------|
-| C with AVX2 | **654M checks/sec** | Scalar hot path, branchless |
-| C compiled (deploy) | **1.5B checks/sec** | Inlined bounds, no indirection |
-| Rust VM (JIT) | **179M checks/sec** | CLI tool, 10 presets |
-| Rust VM (interpreter) | ~1B+/sec | 60 opcodes, proof-carrying |
-| Python numpy batch | **47.9M checks/sec** | Vectorized SIMD |
-| Python scalar | 1.4M checks/sec | Zero-alloc hot path |
-
-### What's Experimental (Research Modules, Not Production)
-
-31 Python modules exploring cross-domain connections:
-
-| Domain | Module | Key Result |
-|--------|--------|------------|
-| Formal verification | `flux_formal` | TLA+ inductive invariant = runtime zero FN |
-| Algebra | `flux_algebra` | Error mask = Boolean algebra Bₙ, severity = monoid |
-| Number theory | `flux_exact_arithmetic` | IEEE 754 monotonicity proven exact |
-| Topology | `flux_topology` | Box constraints always convex, contractible |
-| Information theory | `flux_information` | 500× predictive speedup, zero FN |
-| Signal processing | `flux_signal` | Kalman predicts 1-2 samples early |
-| Optimization | `flux_optimize` | Adaptive ordering, 43% pruning |
-| Thermodynamics | `flux_thermo` | Constraints as ideal gases, partition function factorizes |
-| Game theory | `flux_game_theory` | Nash equilibria, Shapley credit, Vickrey mechanisms |
-| Biology | `flux_ecology`, `flux_homeostasis` | Stigmergic communication, homeostatic bounds |
-| Cryptography | `flux_zk`, `flux_aggregate` | Zero-knowledge proofs, BLS-like proof aggregation |
-| Category theory | `flux_category` | Functor to Boolean algebras, constraint monad |
-| Distribution | `flux_distributed` | TMR voting, maritime compartments, fail-closed severity |
-| Streaming | `flux_stream` | 10K sensors at 1kHz, Kalman + wavelet + anomaly |
-
-These modules demonstrate that constraint checking connects deeply to many fields. They produce real, repeatable results. They are also research code — not hardened for production deployment.
+96 language implementations. 31 research modules. Real hardware numbers.
 
 ---
 
-## Architecture
+## The Problem
+
+Software checks numeric bounds wrong. Not because the code is buggy, but because floating-point arithmetic lies:
+
+- `NaN < 0` is `false`. `NaN > 0` is `false`. A NaN value passes every bounds check silently.
+- Two floats that "should be equal" differ by ULPs (units in the last place). The difference compounds.
+- INT8 quantization of bounds (compressing everything to ±127) introduces 35,984 false negatives across 6 million test values.
+
+You've probably debugged this. It looks like a race condition. It isn't. It's float.
+
+## The Approach
+
+Don't quantize the inputs. Compress the *result*.
 
 ```
-GUARD DSL              Write constraints in a readable syntax
-    ↓
-FLUX-C Bytecode        Compile to 60-opcode ISA (terminates, always)
-    ↓
-JIT / AOT              Compile to native: C, WASM, Verilog, ARM
-    ↓
-Hardware               Execute at 654M-1.5B checks/sec
-    ↓
-Proof Certificate      SHA-256 hash chain, Merkle proofs
+traditional:  value → quantize → compare → error    (loses precision)
+this system:  value → compare → error_mask (1 bit)   (loses nothing)
 ```
 
-### Deployment Targets (AOT compilation)
+Eight constraints → one byte error mask. Bit 0 = constraint 1 violated, bit 1 = constraint 2, etc. IEEE 754 monotonicity means float comparison is exact — the bug was quantizing the *bounds*, not the comparison itself.
 
-- **C with AVX2** — servers, desktops, HPC
-- **WebAssembly** — browsers, edge, sandboxed
-- **Verilog** — FPGA, single clock cycle latency
-- **ARM Cortex-M4** — microcontrollers, 4KB flash
-- **Bare metal C** — seccomp sandbox, zero-syscall steady state
+NaN gets an explicit trap: `v != v` catches it before any comparison.
 
-### The Unified API
+## Five-Minute Tour
+
+### 1. Check some values
 
 ```python
-from flux import ConstraintEngine, Strategy
+from flux import ConstraintEngine
 
-# From preset
 engine = ConstraintEngine.from_preset("automotive_can")
 
-# Check a value (zero-alloc hot path)
-mask = engine.check(3000)  # → int (0 = pass)
+# Single value — returns error mask (0 = all pass)
+mask = engine.check(3000)
 
-# Batch (SIMD)
-masks = engine.check_batch(array)  # → numpy uint8 array
-
-# Strategies
-engine.use(Strategy.ADAPTIVE_ORDERING)   # 43% pruning
-engine.use(Strategy.PREDICTIVE)          # 500× speedup
-engine.use(Strategy.KALMAN_PREDICTION)   # 1-2 samples early
+# Batch — returns numpy uint8 array
+masks = engine.check_batch(values_array)
 ```
 
----
+### 2. Define your own constraints
 
-## Industry Presets
+```python
+engine = ConstraintEngine()
+engine.add_constraint("coolant_temp", -40, 150)
+engine.add_constraint("rpm", 0, 8000)
+engine.add_constraint("battery_voltage", 10.5, 15.0)
 
-| Preset | Required Rate | FLUX Throughput | Headroom | False Negatives |
-|--------|-------------|----------------|----------|-----------------|
-| Aviation (ADS-B) | 1M/s | 3.1M/s | 3.1× | 0 |
-| Automotive (CAN) | 80K/s | 2.7M/s | 33× | 0 |
-| Medical (FHIR) | 500K/s | 2.8M/s | 5.6× | 0 |
-| Financial (FIX) | 1M/s | 2.6M/s | 2.6× | 0 |
-| Energy (SCADA) | 18M/s | 2.8M/s | 0.2× ⚠️ | 0 |
-| IoT (MQTT) | 60K/s | 2.7M/s | 44× | 0 |
+result = engine.check_values({"coolant_temp": 160, "rpm": 3000, "battery_voltage": 12.1})
+# result.error_mask == 0b001  (only coolant_temp violated)
+# result.violated_names == ["coolant_temp"]
+```
 
-SCADA needs C/Rust to meet its 18M/s requirement. Python handles the other five domains with headroom.
+### 3. Split independent constraints for parallelism
 
----
+```python
+from flux_fracture import DependencyGraph, fracture, coalesce
 
-## Test Suite
+# 8 constraints, each on its own dimension → 8 independent blocks
+graph = DependencyGraph.identity(8)
+blocks = fracture(graph)
+# blocks.n_blocks == 8  →  can check all 8 in parallel
+# coalesce via bitwise OR → zero false negatives
+```
 
-- **205+ core tests** (adversarial, production, optimization)
-- **52 integration tests** (full pipeline: GUARD → check → proof → compile)
-- **41 unified API tests**
-- **37 casting/placement tests**
-- **127 PLATO training tests** (separate repo)
-- **29 Rust VM tests**
+### 4. Add edge-case corrections over time
 
----
+```python
+from flux_sediment import SedimentStack
 
-## Repository Map
+stack = SedimentStack()
+# After discovering edge case: coolant should be [-40, 145] not [-40, 150]
+stack.add_layer(constraint_idx=0, corrected_hi=145.0, surprise=2.3)
 
-| Path | What |
-|------|------|
-| `src/python/flux*.py` | 31 research modules |
-| `src/python/flux.py` | Unified API (`from flux import ConstraintEngine`) |
-| `src/c/flux_constraint_exact.h` | C AVX2 implementation |
-| `src/rust/` | Rust CLI (`flux-check`, 179M checks/sec) |
-| `src/` | 96 language implementations |
-| `tests/` | Test suites |
-| `docs/` | Research documents, architecture |
-| `demos/flux-demo.html` | Interactive web visualizer |
-| `benchmarks/` | Real hardware results |
-| `deploy/` | Bare metal, WASM, minimal Linux |
+# Apply corrections on top of standard checks
+corrected_mask = stack.apply(values, original_mask)
+```
 
----
+### 5. Use the C header for production speed
 
-## Related Repos
+```c
+#include "flux_constraint_exact.h"
 
-| Repo | What | Status |
-|------|------|--------|
-| [flux-vm-v3](https://github.com/SuperInstance/flux-vm-v3) | Rust VM, 60 opcodes, JIT, proof-carrying | 55 tests |
-| [guardc-v3](https://github.com/SuperInstance/guardc-v3) | GUARD→FLUX-C compiler | 22 tests |
-| [constraint-theory-core](https://crates.io/crates/constraint-theory-core) | Rust crate (crates.io v2.0.0) | Published |
-| [spectral-conservation](https://crates.io/crates/spectral-conservation) | Spectral gap theorem (crates.io v0.1.0) | Published |
-| [tensor-spline](https://github.com/SuperInstance/tensor-spline) | Eisenstein lattice weight parameterization | 57 tests |
-| [plato-training](https://github.com/SuperInstance/plato-training) | Micro model training pipeline | 127 tests |
+// 654M checks/sec with AVX2 on Zen 5
+uint8_t mask = check_exact(value, bounds, 8);
+```
 
----
+## What's in This Repo
 
-## Honest Limitations
+### The Implementation Matrix
 
-- Python implementations are research-grade, not production-hardened
-- The VM is a prototype — no real-world deployment yet
-- Cross-domain modules demonstrate connections, not optimized implementations
-- The 96-language matrix was breadth-first; most implementations are thin wrappers
-- No GPU compute path yet (benchmarks are CPU-only)
+`src/` contains 96 language implementations. Each one taught us something about how different paradigms handle bounds checking:
+
+- **Forth / Factor** → stack-based VM is simpler to verify
+- **Unison** → content-addressed bytecode (same hash = same behavior)
+- **COBOL** → fixed-size OCCURS tables, no dynamic allocation in the hot path
+- **Fortran** → column-major adjacency is cache-friendly by default
+- **Chapel** → GPU is just another locale; locality matters more than parallelism
+- **Ada / SPARK** → termination proofs via bounded execution
+- **Verilog** → single-clock-cycle constraint checking
+
+The point wasn't to build 96 production libraries. It was to learn what each paradigm forces you to think about. Those lessons shaped the VM and the deployment compiler.
+
+### The Research Modules
+
+`src/python/flux_*.py` — 31 modules connecting constraint checking to other fields. Each one explores a specific question:
+
+| Question | Module | What It Found |
+|----------|--------|--------------|
+| Can you predict violations before they happen? | `flux_information` | Yes — entropy-based detection, 500× fewer checks needed |
+| Are constraint spaces topologically simple? | `flux_topology` | Yes — always convex and contractible |
+| Does the partition function factorize? | `flux_thermo` | Yes — independent constraints behave like ideal gases |
+| Can evolution optimize constraint sets? | `flux_evolution` | Yes — beats hand-design in 25/30 trials |
+| Can you split independent constraints safely? | `flux_fracture` | Yes — bitwise OR coalescence is lossless (proved) |
+| Can a system learn from its mistakes? | `flux_sediment` | Yes — accumulated corrections are monotonically correct |
+| Does the immune system pattern apply? | `flux_immune` | Yes — affinity maturation converges on adversarial inputs |
+| Do court precedents accumulate correctness? | `flux_precedent` | Yes — stare decisis is monotonically beneficial |
+| Can you verify zero false negatives with thermodynamics? | `flux_yield` | Yes — yield = partition function Z, verified to 10⁻¹² |
+| What connects fracture, factorization, and sheaf cohomology? | `flux_sheaf` | They're the same: H¹=0 ⟺ Z factorizes ⟺ fracture is lossless |
+
+### The VM and Compiler
+
+Two separate repos:
+
+- [**flux-vm-v3**](https://github.com/SuperInstance/flux-vm-v3) — 60-opcode stack-based VM. JIT to native. Proof-carrying execution.
+- [**guardc-v3**](https://github.com/SuperInstance/guardc-v3) — GUARD DSL → FLUX-C bytecode compiler. 10 industry presets.
+
+Pipeline: `GUARD source → FLUX-C bytecode → JIT native → error mask → proof certificate`
+
+### The Standalone Packages
+
+Extracted modules for direct use:
+
+| Package | Language | Install | Tests |
+|---------|----------|---------|:-----:|
+| [flux-fracture](https://github.com/SuperInstance/flux-fracture) | Rust | `cargo add flux-fracture` | 16 |
+| [flux-fracture-c](https://github.com/SuperInstance/flux-fracture-c) | C99 | Single header (`#define FRACTURE_IMPLEMENTATION`) | 47 |
+| [flux-check-js](https://github.com/SuperInstance/flux-check-js) | TypeScript | `npm install @flux/check` | 59 |
+| [flux-hyperbolic-py](https://github.com/SuperInstance/flux-hyperbolic-py) | Python | `pip install flux-hyperbolic` | 31 |
+| [flux-genome-py](https://github.com/SuperInstance/flux-genome-py) | Python | `pip install flux-genome` | 30 |
+| [flux-fortran](https://github.com/SuperInstance/flux-fortran) | Fortran 2008 | `gfortran -o test src/*.f90` | 15 |
+| [flux-cobol](https://github.com/SuperInstance/flux-cobol) | GnuCOBOL | `cobc -free -x FLXMAIN.cob` | (no cobc) |
+| [flux-chapel](https://github.com/SuperInstance/flux-chapel) | Chapel | `chpl -o flux src/FluxMain.chpl` | (no chpl) |
+
+### Hardware Numbers
+
+All measured on real hardware. AMD Ryzen AI 9 HX 370 (Zen 5) for CPU, RTX 4050 Laptop for GPU.
+
+| Path | Throughput | Notes |
+|------|-----------|-------|
+| C with AVX2 | 654M checks/sec | Scalar, branchless |
+| C deploy (AOT) | 1.5B/sec | Inlined bounds |
+| GPU (RTX 4050) | 42.9B checks/sec | 10M values × 8 constraints |
+| GPU + sediment (hybrid) | 3.8G values/sec | Fused kernel |
+| GPU memory bandwidth | 159.5 GB/sec | 62% of theoretical |
+| Rust CLI | 179M/sec | JIT-compiled |
+| Python numpy batch | 47.9M/sec | Vectorized SIMD |
+| Python scalar | 1.4M/sec | Zero-alloc |
+
+## The Concepts
+
+If you're going repo by repo, here's how the pieces fit together:
+
+1. **Error mask** — 1 bit per constraint. 8 constraints = 1 byte. The fundamental data structure.
+2. **NaN trap** — IEEE 754 makes NaN pass all comparisons. Must check `v != v` explicitly.
+3. **Fracture-coalesce** — Split independent constraints into blocks (BFS on dependency graph). Merge results with bitwise OR. Zero false negatives because Boolean algebra.
+4. **Sediment** — Accumulated edge-case corrections. Each layer tightens a bound. Correctness is monotonically increasing.
+5. **Partition function** — Independent constraints factorize: Z = ΠᵢZᵢ. This is why fracture works and why the thermodynamics is clean.
+6. **Sheaf cohomology** — H¹=0 means the constraint system has no hidden dependencies. Equivalent to factorization. Equivalent to fracture being lossless. Three languages for one fact.
+
+## What's Not Production
+
+- The Python research modules demonstrate connections, not optimized implementations
+- The 96-language matrix was breadth-first; most are thin wrappers
+- The VM has no real-world deployment yet
 - The proof system adds ~43% overhead (SHA-256 per check)
-- Energy SCADA throughput requires C/Rust; Python can't keep up at 18M/s
+- Energy SCADA's 18M/s rate requires C/Rust; Python can't keep up
 
----
+## Where to Go Next
+
+| If you want to... | Go to... |
+|---|---|
+| Check bounds in your code | [flux-check-js](https://github.com/SuperInstance/flux-check-js) (JS) or [flux-fracture](https://github.com/SuperInstance/flux-fracture) (Rust) |
+| Understand the VM design | [flux-vm-v3](https://github.com/SuperInstance/flux-vm-v3) |
+| Write constraints in a DSL | [guardc-v3](https://github.com/SuperInstance/guardc-v3) |
+| See the cross-domain research | `src/python/flux_*.py` in this repo |
+| Learn what old languages teach | [OLD-LANGUAGE-ARCHITECTURE.md](docs/OLD-LANGUAGE-ARCHITECTURE.md) |
+| Read the grand mathematical synthesis | [GRAND-SYNTHESIS.md](docs/GRAND-SYNTHESIS.md) |
+| See GPU benchmarks | [flux-gpu](https://github.com/SuperInstance/flux-gpu) |
+| Understand the fleet training pipeline | [plato-training](https://github.com/SuperInstance/plato-training) |
 
 ## License
 
 MIT
-
----
-
-## Credit
-
-Built by the Cocapn fleet. The constraint math comes from [constraint-theory-core](https://github.com/SuperInstance/constraint-theory-core). The deployment insights come from 96 language implementations. The cross-domain connections came from letting cheap AI models ask questions that expensive ones wouldn't bother with.
