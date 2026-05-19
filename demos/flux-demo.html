@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FLUX Constraint Engine — Interactive Demo</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2333;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --orange: #db6d28;
+    --red: #f85149;
+    --green-dim: rgba(63,185,80,0.15);
+    --yellow-dim: rgba(210,153,34,0.15);
+    --orange-dim: rgba(219,109,40,0.15);
+    --red-dim: rgba(248,81,73,0.15);
+    --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+
+  html { font-size: 15px; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  header {
+    text-align: center;
+    padding: 2rem 1rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  header h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  header h1 span { color: var(--accent); }
+  header p { color: var(--text-dim); font-size: 0.9rem; margin-top: 0.3rem; }
+
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 3rem;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  .card-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    margin-bottom: 0.75rem;
+  }
+
+  /* Preset buttons */
+  .preset-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+  }
+  .preset-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.45rem 0.9rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-family: var(--mono);
+    transition: all 0.15s;
+  }
+  .preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .preset-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+
+  /* Sliders */
+  .constraint-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+  .constraint-item {
+    background: var(--surface2);
+    border-radius: 6px;
+    padding: 0.75rem;
+  }
+  .constraint-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.4rem;
+  }
+  .constraint-name {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--accent);
+  }
+  .constraint-range {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--text-dim);
+  }
+  .constraint-status {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    margin-top: 0.5rem;
+    transition: background 0.15s;
+  }
+  .constraint-status.pass { background: var(--green); }
+  .constraint-status.lo-fail { background: linear-gradient(90deg, var(--red), var(--border)); }
+  .constraint-status.hi-fail { background: linear-gradient(90deg, var(--border), var(--red)); }
+  .constraint-status.both-fail { background: var(--red); }
+
+  /* Value slider */
+  .value-section { margin-top: 0.5rem; }
+  .value-display {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+  .value-number {
+    font-family: var(--mono);
+    font-size: 2.2rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .value-label {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 6px rgba(88,166,255,0.4);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--bg);
+    box-shadow: 0 0 6px rgba(88,166,255,0.4);
+  }
+
+  /* Number line */
+  .numberline-container {
+    position: relative;
+    height: 80px;
+    margin: 0.5rem 0 1rem;
+  }
+  #numberline-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border-radius: 6px;
+    background: var(--surface2);
+  }
+
+  /* Error mask */
+  .error-mask {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.75rem;
+  }
+  .error-mask-label {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    font-family: var(--mono);
+  }
+  .bit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    font-weight: 700;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text-dim);
+    transition: all 0.15s;
+  }
+  .bit.on {
+    background: var(--red-dim);
+    border-color: var(--red);
+    color: var(--red);
+    box-shadow: 0 0 8px rgba(248,81,73,0.3);
+  }
+
+  /* Severity */
+  .severity-display {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 0.75rem;
+  }
+  .severity-badge {
+    display: inline-block;
+    padding: 0.3rem 0.8rem;
+    border-radius: 4px;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .severity-badge.pass { background: var(--green-dim); color: var(--green); }
+  .severity-badge.caution { background: var(--yellow-dim); color: var(--yellow); }
+  .severity-badge.warning { background: var(--orange-dim); color: var(--orange); }
+  .severity-badge.critical { background: var(--red-dim); color: var(--red); }
+
+  .severity-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .severity-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.2s, background 0.2s;
+  }
+
+  /* Action buttons */
+  .action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+  .action-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.4rem 0.75rem;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-family: var(--mono);
+    transition: all 0.15s;
+  }
+  .action-btn:hover { border-color: var(--accent); }
+  .action-btn.danger:hover { border-color: var(--red); color: var(--red); }
+  .action-btn.running { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+
+  /* Stats */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.75rem;
+  }
+  .stat-item {
+    text-align: center;
+    background: var(--surface2);
+    border-radius: 6px;
+    padding: 0.75rem;
+  }
+  .stat-value {
+    font-family: var(--mono);
+    font-size: 1.4rem;
+    font-weight: 700;
+  }
+  .stat-label {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 0.2rem;
+  }
+
+  /* Batch wave canvas */
+  .wave-container {
+    position: relative;
+    height: 120px;
+    margin-top: 0.5rem;
+  }
+  #wave-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border-radius: 6px;
+    background: var(--surface2);
+  }
+
+  /* Detail table */
+  .detail-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+  }
+  .detail-table th {
+    text-align: left;
+    padding: 0.4rem 0.6rem;
+    color: var(--text-dim);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+  }
+  .detail-table td {
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid rgba(48,54,61,0.4);
+    font-family: var(--mono);
+  }
+  .detail-table tr.violated td { background: var(--red-dim); }
+  .detail-table .pass-icon { color: var(--green); }
+  .detail-table .fail-icon { color: var(--red); }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    html { font-size: 14px; }
+    header h1 { font-size: 1.4rem; }
+    .constraint-grid { grid-template-columns: 1fr 1fr; }
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .value-number { font-size: 1.8rem; }
+  }
+  @media (max-width: 400px) {
+    .constraint-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>FLUX <span>Constraint Engine</span></h1>
+  <p>Zero False Negatives · Real-Time Interactive Visualizer</p>
+</header>
+
+<main>
+
+  <!-- Presets -->
+  <div class="preset-row" id="presets"></div>
+
+  <!-- Constraints -->
+  <div class="card">
+    <div class="card-title">Active Constraints</div>
+    <div class="constraint-grid" id="constraint-grid"></div>
+  </div>
+
+  <!-- Value + Number Line -->
+  <div class="card">
+    <div class="card-title">Probe Value</div>
+    <div class="value-section">
+      <div class="value-display">
+        <span class="value-number" id="value-num">0.000</span>
+        <span class="value-label" id="value-label">drag slider or type</span>
+      </div>
+      <input type="range" id="value-slider" min="-100" max="100" step="any" value="0">
+      <div class="action-row">
+        <button class="action-btn" id="btn-boundary">⇌ Boundary Snap</button>
+        <button class="action-btn danger" id="btn-nan">∅ Inject NaN</button>
+        <button class="action-btn" id="btn-random">⏚ Random Value</button>
+      </div>
+    </div>
+
+    <div class="card-title" style="margin-top:1.25rem">Constraint Space</div>
+    <div class="numberline-container">
+      <canvas id="numberline-canvas"></canvas>
+    </div>
+
+    <!-- Error mask bits -->
+    <div class="error-mask">
+      <span class="error-mask-label">error_mask:</span>
+      <span id="mask-hex" class="error-mask-label" style="color:var(--accent)">0x00</span>
+      <div id="bit-container"></div>
+    </div>
+
+    <!-- Severity -->
+    <div class="severity-display">
+      <span class="error-mask-label">severity:</span>
+      <span class="severity-badge pass" id="severity-badge">PASS</span>
+      <div class="severity-bar">
+        <div class="severity-bar-fill" id="severity-fill" style="width:0%;background:var(--green)"></div>
+      </div>
+      <span id="violated-count" class="error-mask-label">0 / 8 violated</span>
+    </div>
+  </div>
+
+  <!-- Detail table -->
+  <div class="card">
+    <div class="card-title">Constraint Detail</div>
+    <table class="detail-table" id="detail-table">
+      <thead>
+        <tr><th>Status</th><th>Name</th><th>Lo</th><th>Hi</th><th>Value</th><th>Margin</th></tr>
+      </thead>
+      <tbody id="detail-tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Batch mode -->
+  <div class="card">
+    <div class="card-title">Batch Mode — Sine Wave Sweep</div>
+    <div class="action-row" style="margin-top:0">
+      <button class="action-btn" id="btn-batch">▶ Start Sweep</button>
+      <button class="action-btn" id="btn-batch-stop" style="display:none">■ Stop</button>
+      <span id="batch-info" class="error-mask-label" style="align-self:center"></span>
+    </div>
+    <div class="wave-container">
+      <canvas id="wave-canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="card">
+    <div class="card-title">Performance Statistics</div>
+    <div class="stats-grid">
+      <div class="stat-item">
+        <div class="stat-value" id="stat-checks">0</div>
+        <div class="stat-label">Total Checks</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="stat-rate">0</div>
+        <div class="stat-label">Checks/sec</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="stat-violations">0</div>
+        <div class="stat-label">Violations</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="stat-severity">0.00</div>
+        <div class="stat-label">Mean Severity</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="stat-violrate">0%</div>
+        <div class="stat-label">Violation Rate</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value" id="stat-worst">—</div>
+        <div class="stat-label">Worst Severity</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── Constraint engine (mirrors flux_constraint_exact.py) ──
+
+const PRESETS = {
+  automotive_can: [
+    {lo: 0, hi: 8000, name: "engine_rpm"},
+    {lo: 0, hi: 300, name: "vehicle_speed_kmh"},
+    {lo: -40, hi: 150, name: "coolant_temp_c"},
+    {lo: 0, hi: 100, name: "throttle_pct"},
+    {lo: 0, hi: 200, name: "brake_pressure_bar"},
+    {lo: -720, hi: 720, name: "steering_angle_deg"},
+    {lo: 9, hi: 16, name: "battery_voltage_v"},
+    {lo: 0, hi: 100, name: "fuel_level_pct"},
+  ],
+  aviation_adsb: [
+    {lo: -1000, hi: 45000, name: "altitude_ft"},
+    {lo: 0, hi: 600, name: "ground_speed_kt"},
+    {lo: -180, hi: 180, name: "heading_deg"},
+    {lo: -55, hi: 70, name: "cabin_temp_c"},
+    {lo: 75, hi: 101, name: "cabin_pressure_kpa"},
+    {lo: 0, hi: 100, name: "fuel_flow_pct"},
+    {lo: 60, hi: 100, name: "hydraulic_pct"},
+    {lo: -90, hi: 90, name: "pitch_deg"},
+  ],
+  medical_fhir: [
+    {lo: 36.1, hi: 37.8, name: "body_temp_c"},
+    {lo: 60, hi: 100, name: "heart_rate_bpm"},
+    {lo: 95, hi: 100, name: "spo2_pct"},
+    {lo: 80, hi: 120, name: "bp_systolic_mmhg"},
+    {lo: 60, hi: 100, name: "bp_diastolic_mmhg"},
+    {lo: 12, hi: 20, name: "respiratory_rate"},
+    {lo: 7.35, hi: 7.45, name: "ph"},
+    {lo: 0, hi: 300, name: "glucose_mg_dl"},
+  ],
+  energy_scada: [
+    {lo: 49.0, hi: 51.0, name: "grid_freq_hz"},
+    {lo: 0.9, hi: 1.1, name: "voltage_pu"},
+    {lo: 0, hi: 80, name: "transformer_temp_c"},
+    {lo: 0, hi: 100, name: "line_load_pct"},
+    {lo: 0, hi: 500, name: "current_a"},
+    {lo: -100, hi: 100, name: "power_factor_pct_offset"},
+    {lo: 0, hi: 360, name: "phase_angle_deg"},
+    {lo: 0, hi: 50, name: "thd_pct"},
+  ],
+  iot_mqtt: [
+    {lo: -40, hi: 85, name: "ambient_temp_c"},
+    {lo: 0, hi: 100, name: "humidity_pct"},
+    {lo: 300, hi: 1100, name: "pressure_hpa"},
+    {lo: 0, hi: 1000, name: "co2_ppm"},
+    {lo: 0, hi: 500, name: "pm25_ug_m3"},
+    {lo: 0, hi: 5000, name: "light_lux"},
+    {lo: 0, hi: 100, name: "battery_pct"},
+    {lo: -120, hi: -20, name: "wifi_rssi_dbm"},
+  ],
+  financial_fix: [
+    {lo: 0.0001, hi: 100000, name: "price"},
+    {lo: 1, hi: 10000000, name: "volume"},
+    {lo: -100, hi: 100, name: "pct_change"},
+    {lo: 0.001, hi: 1000, name: "volatility"},
+    {lo: 0, hi: 1, name: "correlation"},
+    {lo: -100000, hi: 100000, name: "spread_bps"},
+    {lo: 0, hi: 86400, name: "time_offset_s"},
+    {lo: 0.01, hi: 100, name: "duration_years"},
+  ],
+};
+
+const SEVERITY_TABLE = [
+  "PASS", "CAUTION", "CAUTION",
+  "WARNING", "WARNING",
+  "CRITICAL", "CRITICAL", "CRITICAL", "CRITICAL",
+];
+
+function checkMask(constraints, value) {
+  if (Number.isNaN(value)) return (1 << constraints.length) - 1;
+  let mask = 0;
+  for (let i = 0; i < constraints.length; i++) {
+    if (value < constraints[i].lo || value > constraints[i].hi) mask |= (1 << i);
+  }
+  return mask;
+}
+
+function getSeverity(mask) {
+  const n = mask.toString(2).split('').filter(c => c === '1').length;
+  return SEVERITY_TABLE[Math.min(n, SEVERITY_TABLE.length - 1)];
+}
+
+function getSeverityLevel(mask) {
+  const names = ["PASS","CAUTION","WARNING","CRITICAL"];
+  const n = mask.toString(2).split('').filter(c => c === '1').length;
+  return Math.min(n >= 5 ? 3 : n >= 3 ? 2 : n >= 1 ? 1 : 0, 3);
+}
+
+// ── State ──
+
+let constraints = PRESETS.automotive_can;
+let currentPreset = "automotive_can";
+let currentValue = 0;
+let stats = { checks: 0, violations: 0, severitySum: 0, worstLevel: 0, startTime: performance.now() };
+let batchRunning = false;
+let batchRaf = null;
+let waveHistory = [];
+
+// ── Init ──
+
+function init() {
+  buildPresetButtons();
+  loadPreset("automotive_can");
+  document.getElementById("value-slider").addEventListener("input", onSlider);
+  document.getElementById("btn-nan").addEventListener("click", injectNaN);
+  document.getElementById("btn-boundary").addEventListener("click", snapBoundary);
+  document.getElementById("btn-random").addEventListener("click", randomValue);
+  document.getElementById("btn-batch").addEventListener("click", startBatch);
+  document.getElementById("btn-batch-stop").addEventListener("click", stopBatch);
+  window.addEventListener("resize", () => { drawNumberLine(); drawWave(); });
+  updateDisplay();
+}
+
+function buildPresetButtons() {
+  const row = document.getElementById("presets");
+  Object.keys(PRESETS).forEach(key => {
+    const btn = document.createElement("button");
+    btn.className = "preset-btn";
+    btn.textContent = key;
+    btn.dataset.preset = key;
+    btn.addEventListener("click", () => loadPreset(key));
+    row.appendChild(btn);
+  });
+}
+
+function loadPreset(key) {
+  currentPreset = key;
+  constraints = PRESETS[key];
+  stats = { checks: 0, violations: 0, severitySum: 0, worstLevel: 0, startTime: performance.now() };
+  waveHistory = [];
+
+  document.querySelectorAll(".preset-btn").forEach(b => b.classList.toggle("active", b.dataset.preset === key));
+
+  // Setup slider range based on constraints
+  const allVals = constraints.flatMap(c => [c.lo, c.hi]);
+  const gMin = Math.min(...allVals);
+  const gMax = Math.max(...allVals);
+  const pad = (gMax - gMin) * 0.3 || 1;
+  const slider = document.getElementById("value-slider");
+  slider.min = gMin - pad;
+  slider.max = gMax + pad;
+  slider.step = "any";
+  slider.value = (gMin + gMax) / 2;
+  currentValue = parseFloat(slider.value);
+
+  buildConstraintGrid();
+  buildBitContainer();
+  updateDisplay();
+}
+
+function buildConstraintGrid() {
+  const grid = document.getElementById("constraint-grid");
+  grid.innerHTML = "";
+  constraints.forEach((c, i) => {
+    const div = document.createElement("div");
+    div.className = "constraint-item";
+    div.id = `ci-${i}`;
+    div.innerHTML = `
+      <div class="constraint-label">
+        <span class="constraint-name">${c.name}</span>
+        <span class="constraint-range">[${c.lo}, ${c.hi}]</span>
+      </div>
+      <div class="constraint-status" id="cs-${i}"></div>
+    `;
+    grid.appendChild(div);
+  });
+}
+
+function buildBitContainer() {
+  const cont = document.getElementById("bit-container");
+  cont.innerHTML = "";
+  constraints.forEach((_, i) => {
+    const span = document.createElement("span");
+    span.className = "bit";
+    span.id = `bit-${i}`;
+    span.textContent = "0";
+    span.title = constraints[i].name;
+    cont.appendChild(span);
+  });
+}
+
+// ── Display Update ──
+
+function onSlider(e) {
+  currentValue = parseFloat(e.target.value);
+  updateDisplay();
+}
+
+function updateDisplay() {
+  const mask = checkMask(constraints, currentValue);
+  const sevName = getSeverity(mask);
+  const sevLevel = getSeverityLevel(mask);
+  const nViolated = mask.toString(2).split('').filter(c => c === '1').length;
+
+  // Update stats
+  stats.checks++;
+  if (mask !== 0) stats.violations++;
+  stats.severitySum += sevLevel;
+  if (sevLevel > stats.worstLevel) stats.worstLevel = sevLevel;
+
+  // Value display
+  const valNum = document.getElementById("value-num");
+  valNum.textContent = Number.isNaN(currentValue) ? "NaN" : currentValue.toFixed(3);
+  valNum.style.color = mask === 0 ? "var(--green)" : "var(--red)";
+
+  // Constraint statuses
+  constraints.forEach((c, i) => {
+    const el = document.getElementById(`cs-${i}`);
+    const bit = (mask >> i) & 1;
+    const loV = currentValue < c.lo;
+    const hiV = currentValue > c.hi;
+    el.className = "constraint-status " + (bit ? (loV && hiV ? "both-fail" : loV ? "lo-fail" : "hi-fail") : "pass");
+  });
+
+  // Error mask bits
+  constraints.forEach((_, i) => {
+    const el = document.getElementById(`bit-${i}`);
+    const on = (mask >> i) & 1;
+    el.textContent = on;
+    el.className = "bit" + (on ? " on" : "");
+  });
+  document.getElementById("mask-hex").textContent = "0x" + mask.toString(16).toUpperCase().padStart(2, "0");
+
+  // Severity badge
+  const badge = document.getElementById("severity-badge");
+  badge.className = "severity-badge " + sevName.toLowerCase();
+  badge.textContent = sevName;
+
+  const fill = document.getElementById("severity-fill");
+  fill.style.width = (sevLevel / 3 * 100) + "%";
+  fill.style.background = sevLevel === 0 ? "var(--green)" : sevLevel === 1 ? "var(--yellow)" : sevLevel === 2 ? "var(--orange)" : "var(--red)";
+
+  document.getElementById("violated-count").textContent = `${nViolated} / ${constraints.length} violated`;
+
+  // Detail table
+  const tbody = document.getElementById("detail-tbody");
+  tbody.innerHTML = "";
+  constraints.forEach((c, i) => {
+    const bit = (mask >> i) & 1;
+    const passed = !bit;
+    const margin = Number.isNaN(currentValue) ? NaN : Math.min(Math.abs(currentValue - c.lo), Math.abs(c.hi - currentValue));
+    const marginStr = Number.isNaN(margin) ? "NaN" : margin.toFixed(2);
+    const tr = document.createElement("tr");
+    tr.className = bit ? "violated" : "";
+    tr.innerHTML = `
+      <td class="${passed ? "pass-icon" : "fail-icon"}">${passed ? "✓" : "✗"}</td>
+      <td>${c.name}</td>
+      <td>${c.lo}</td>
+      <td>${c.hi}</td>
+      <td>${Number.isNaN(currentValue) ? "NaN" : currentValue.toFixed(3)}</td>
+      <td>${marginStr}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // Stats
+  const elapsed = (performance.now() - stats.startTime) / 1000;
+  document.getElementById("stat-checks").textContent = stats.checks.toLocaleString();
+  document.getElementById("stat-rate").textContent = elapsed > 0 ? Math.round(stats.checks / elapsed).toLocaleString() : "—";
+  document.getElementById("stat-violations").textContent = stats.violations.toLocaleString();
+  document.getElementById("stat-severity").textContent = stats.checks > 0 ? (stats.severitySum / stats.checks).toFixed(2) : "0.00";
+  document.getElementById("stat-violrate").textContent = stats.checks > 0 ? (stats.violations / stats.checks * 100).toFixed(1) + "%" : "0%";
+  const worstNames = ["PASS","CAUTION","WARNING","CRITICAL"];
+  document.getElementById("stat-worst").textContent = worstNames[stats.worstLevel];
+
+  drawNumberLine();
+}
+
+// ── Number Line ──
+
+function drawNumberLine() {
+  const canvas = document.getElementById("numberline-canvas");
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  canvas.style.width = rect.width + "px";
+  canvas.style.height = rect.height + "px";
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  const W = rect.width;
+  const H = rect.height;
+
+  // Global range
+  const allVals = constraints.flatMap(c => [c.lo, c.hi]);
+  let gMin = Math.min(...allVals);
+  let gMax = Math.max(...allVals);
+  const pad = (gMax - gMin) * 0.15 || 1;
+  gMin -= pad;
+  gMax += pad;
+  const range = gMax - gMin;
+
+  function xFor(v) { return ((v - gMin) / range) * W; }
+
+  // Background
+  ctx.fillStyle = "#1c2333";
+  ctx.fillRect(0, 0, W, H);
+
+  // Axis
+  const axisY = H * 0.6;
+  ctx.strokeStyle = "#30363d";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, axisY);
+  ctx.lineTo(W, axisY);
+  ctx.stroke();
+
+  // Constraint bands
+  const colors = ["rgba(88,166,255,0.25)","rgba(63,185,80,0.25)","rgba(210,153,34,0.25)","rgba(219,109,40,0.25)","rgba(248,81,73,0.25)","rgba(140,100,255,0.25)","rgba(63,200,200,0.25)","rgba(255,150,200,0.25)"];
+  const bandH = 18;
+  const mask = checkMask(constraints, currentValue);
+
+  constraints.forEach((c, i) => {
+    const x1 = xFor(c.lo);
+    const x2 = xFor(c.hi);
+    const y = axisY - 8 - (i % 4) * (bandH + 3);
+    const bit = (mask >> i) & 1;
+    const alpha = bit ? 0.12 : 1;
+
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.fillRect(x1, y - bandH, x2 - x1, bandH);
+
+    ctx.strokeStyle = bit ? "#f85149" : "#30363d";
+    ctx.lineWidth = bit ? 2 : 1;
+    ctx.strokeRect(x1, y - bandH, x2 - x1, bandH);
+
+    // Label
+    ctx.fillStyle = bit ? "#f85149" : "#8b949e";
+    ctx.font = "10px monospace";
+    ctx.textAlign = "left";
+    const label = c.name.length > 14 ? c.name.slice(0, 12) + "…" : c.name;
+    ctx.fillText(label, x1 + 3, y - bandH + 12);
+    ctx.globalAlpha = 1;
+  });
+
+  // Value marker
+  if (!Number.isNaN(currentValue)) {
+    const vx = xFor(currentValue);
+    ctx.strokeStyle = "#f0f6fc";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(vx, 4);
+    ctx.lineTo(vx, H - 4);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Marker dot
+    ctx.fillStyle = mask === 0 ? "#3fb950" : "#f85149";
+    ctx.beginPath();
+    ctx.arc(vx, axisY, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#0d1117";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Value label
+    ctx.fillStyle = "#e6edf3";
+    ctx.font = "bold 11px monospace";
+    ctx.textAlign = "center";
+    ctx.fillText(currentValue.toFixed(2), vx, 14);
+  }
+
+  // Tick marks
+  const nTicks = Math.min(Math.floor(W / 80), 12);
+  ctx.strokeStyle = "#30363d";
+  ctx.fillStyle = "#8b949e";
+  ctx.font = "10px monospace";
+  ctx.textAlign = "center";
+  for (let i = 0; i <= nTicks; i++) {
+    const v = gMin + (range * i / nTicks);
+    const x = xFor(v);
+    ctx.beginPath();
+    ctx.moveTo(x, axisY - 3);
+    ctx.lineTo(x, axisY + 3);
+    ctx.stroke();
+    ctx.fillText(v.toFixed(1), x, axisY + 14);
+  }
+}
+
+// ── Actions ──
+
+function injectNaN() {
+  currentValue = NaN;
+  document.getElementById("value-slider").value = 0;
+  document.getElementById("value-label").textContent = "NaN injected";
+  updateDisplay();
+}
+
+function snapBoundary() {
+  // Find nearest boundary
+  let best = null, bestDist = Infinity;
+  constraints.forEach(c => {
+    [c.lo, c.hi].forEach(b => {
+      const d = Math.abs(currentValue - b);
+      if (d < bestDist) { bestDist = d; best = b; }
+    });
+  });
+  if (best !== null) {
+    currentValue = best;
+    document.getElementById("value-slider").value = best;
+    document.getElementById("value-label").textContent = "snapped to boundary";
+    updateDisplay();
+  }
+}
+
+function randomValue() {
+  const allVals = constraints.flatMap(c => [c.lo, c.hi]);
+  const gMin = Math.min(...allVals);
+  const gMax = Math.max(...allVals);
+  const range = gMax - gMin;
+  currentValue = gMin + Math.random() * range * 1.4 - range * 0.2;
+  document.getElementById("value-slider").value = currentValue;
+  document.getElementById("value-label").textContent = "random value";
+  updateDisplay();
+}
+
+// ── Batch mode ──
+
+function startBatch() {
+  if (batchRunning) return;
+  batchRunning = true;
+  waveHistory = [];
+  document.getElementById("btn-batch").style.display = "none";
+  document.getElementById("btn-batch-stop").style.display = "";
+  const allVals = constraints.flatMap(c => [c.lo, c.hi]);
+  const gMin = Math.min(...allVals);
+  const gMax = Math.max(...allVals);
+  const center = (gMin + gMax) / 2;
+  const amp = (gMax - gMin) * 0.7;
+  const slider = document.getElementById("value-slider");
+  const startTime = performance.now();
+  const duration = 8000; // 8 seconds
+
+  function frame(now) {
+    if (!batchRunning) return;
+    const t = (now - startTime) / duration;
+    if (t >= 1) { stopBatch(); return; }
+    // Sweep sine wave across full range
+    const v = center + amp * Math.sin(t * Math.PI * 4);
+    currentValue = v;
+    slider.value = v;
+    const mask = checkMask(constraints, v);
+    waveHistory.push({ t, v, mask, sev: getSeverityLevel(mask) });
+    // Keep last ~400 points
+    if (waveHistory.length > 400) waveHistory.shift();
+    updateDisplay();
+    drawWave();
+    document.getElementById("batch-info").textContent = `${Math.round(t * 100)}% — ${waveHistory.length} samples`;
+    batchRaf = requestAnimationFrame(frame);
+  }
+  batchRaf = requestAnimationFrame(frame);
+}
+
+function stopBatch() {
+  batchRunning = false;
+  if (batchRaf) cancelAnimationFrame(batchRaf);
+  document.getElementById("btn-batch").style.display = "";
+  document.getElementById("btn-batch-stop").style.display = "none";
+  document.getElementById("batch-info").textContent = `done — ${waveHistory.length} samples`;
+}
+
+function drawWave() {
+  const canvas = document.getElementById("wave-canvas");
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  canvas.style.width = rect.width + "px";
+  canvas.style.height = rect.height + "px";
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  const W = rect.width;
+  const H = rect.height;
+
+  ctx.fillStyle = "#1c2333";
+  ctx.fillRect(0, 0, W, H);
+
+  if (waveHistory.length < 2) {
+    ctx.fillStyle = "#8b949e";
+    ctx.font = "13px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Press ▶ Start Sweep to animate", W / 2, H / 2);
+    return;
+  }
+
+  const allVals = constraints.flatMap(c => [c.lo, c.hi]);
+  let gMin = Math.min(...allVals);
+  let gMax = Math.max(...allVals);
+  // Include wave range too
+  const wMin = Math.min(...waveHistory.map(w => w.v));
+  const wMax = Math.max(...waveHistory.map(w => w.v));
+  gMin = Math.min(gMin, wMin);
+  gMax = Math.max(gMax, wMax);
+  const pad = (gMax - gMin) * 0.1 || 1;
+  gMin -= pad;
+  gMax += pad;
+  const range = gMax - gMin;
+
+  function yFor(v) { return H - ((v - gMin) / range) * H; }
+
+  // Constraint bands background
+  const bandColors = ["rgba(88,166,255,0.12)","rgba(63,185,80,0.12)","rgba(210,153,34,0.12)","rgba(219,109,40,0.12)","rgba(248,81,73,0.12)","rgba(140,100,255,0.12)","rgba(63,200,200,0.12)","rgba(255,150,200,0.12)"];
+  constraints.forEach((c, i) => {
+    ctx.fillStyle = bandColors[i % bandColors.length];
+    ctx.fillRect(0, yFor(c.hi), W, yFor(c.lo) - yFor(c.hi));
+  });
+
+  // Value line
+  ctx.beginPath();
+  ctx.strokeStyle = "#e6edf3";
+  ctx.lineWidth = 2;
+  waveHistory.forEach((p, i) => {
+    const x = (i / (waveHistory.length - 1)) * W;
+    const y = yFor(p.v);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Violation dots
+  waveHistory.forEach((p, i) => {
+    if (p.mask === 0) return;
+    const x = (i / (waveHistory.length - 1)) * W;
+    const y = yFor(p.v);
+    ctx.fillStyle = p.sev >= 3 ? "#f85149" : p.sev >= 2 ? "#db6d28" : "#d29922";
+    ctx.beginPath();
+    ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+// ── Boot ──
+init();
+</script>
+</body>
+</html>

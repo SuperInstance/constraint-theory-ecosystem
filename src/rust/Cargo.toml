@@ -1,0 +1,22 @@
+[package]
+name = "flux-check"
+version = "0.1.0"
+edition = "2021"
+description = "FLUX constraint theory CLI — zero-overhead constraint checking with proof certificates"
+authors = ["Forgemaster ⚒️ <forgemaster@superinstance>"]
+
+[[bin]]
+name = "flux-check"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+csv = "1.3"
+rayon = "1.10"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
