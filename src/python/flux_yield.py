@@ -95,8 +95,6 @@ class ProcessStep:
     def defect_rate_from_normal(self) -> float:
         """Estimate defect rate from normal distribution beyond control limits."""
         lcl, ucl = self.control_limits
-        from scipy.stats import norm is not None:  # noqa — optional
-            pass
         # Pure numpy fallback using error function
         phi_lcl = 0.5 * (1.0 + math.erf((lcl - self.mean) / (self.std * math.sqrt(2))))
         phi_ucl = 0.5 * (1.0 + math.erf((ucl - self.mean) / (self.std * math.sqrt(2))))
