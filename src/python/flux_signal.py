@@ -302,10 +302,21 @@ class ViolationWavelet:
         mid_energy = sum(energy_frac[fine_threshold:mid_threshold])
         coarse_energy = sum(energy_frac[mid_threshold:])
 
+        # Check for drift-specific signature:
+        # Drift = monotonic increase in violations → energy concentrated at
+        # coarsest levels with low fine energy AND high violation rate
+        is_high_violation_rate = violation_count > n * 0.1
+        is_monotonic_drift = (coarse_energy > 0.3 or
+                             (coarse_energy + mid_energy * 0.5) > 0.4)
+
         # Classification logic
         if fine_energy > 0.6 and violation_count <= n * 0.05:
             pattern = ViolationPattern.SPIKE
             confidence = fine_energy
+        elif is_high_violation_rate and is_monotonic_drift and coarse_energy > 0.1:
+            # Drift: many violations with energy at coarse/mid scales
+            pattern = ViolationPattern.DRIFT
+            confidence = coarse_energy + (1 - fine_energy) * 0.3
         elif coarse_energy > 0.5:
             pattern = ViolationPattern.DRIFT
             confidence = coarse_energy
