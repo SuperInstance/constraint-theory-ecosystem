@@ -1,0 +1,43 @@
+{
+  "hardware": "AMD Ryzen AI 9 HX 370 w/ Radeon 890M (Zen 5)",
+  "os": "WSL2 Ubuntu 22.04",
+  "date": "2026-05-19",
+  "test": "4-constraint aviation preset, 10M iterations, single-threaded",
+  "results": {
+    "C (gcc -O3 -march=native)": {
+      "rate_B": 11.12,
+      "ms": 3.6,
+      "iters": 10000000,
+      "x_python": 6854
+    },
+    "Rust (rustc -O)": {
+      "rate_B": 3.01,
+      "ms": 13.3,
+      "iters": 10000000,
+      "x_python": 1852
+    },
+    "Go 1.26": {
+      "rate_B": 1.37,
+      "ms": 29.3,
+      "iters": 10000000,
+      "x_python": 843
+    },
+    "Node.js 22 (V8)": {
+      "rate_M": 678,
+      "ms": 59.0,
+      "iters": 10000000,
+      "x_python": 418
+    },
+    "Python 3.10": {
+      "rate_M": 1.62,
+      "ms": 24800,
+      "iters": 10000000,
+      "x_python": 1
+    }
+  },
+  "golden_vectors": {
+    "python": "0/10000",
+    "node": "0/10000",
+    "go": "0/10000"
+  }
+}

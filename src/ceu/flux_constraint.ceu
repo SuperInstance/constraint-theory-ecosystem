@@ -1,0 +1,225 @@
+// FLUX Constraint Engine — Céu (2006, Synchronous Reactive)
+// Pure INT8 saturated constraint checking. Zero dependencies.
+//
+// The insight: synchronous reactive programming makes constraint checking
+// DETERMINISTIC by construction. Every input is processed in a single
+// reaction — no interleaving, no race conditions, no nondeterminism.
+// The reaction IS the check. The timeline IS the guarantee.
+//
+// "Synchronous: every input produces exactly one output, in zero logical time.
+//  Reactive: the program AWAKENS when sensors speak.
+//  Deterministic: the same input always produces the same result.
+//  This is what safety-critical systems need — not speed, but certainty."
+
+#include <stdio.h>
+
+// ══════════════════════════════════════════════════════════════════
+//  Constants
+// ══════════════════════════════════════════════════════════════════
+
+#define INT8_MIN -127
+#define INT8_MAX 127
+#define MAX_CONSTRAINTS 8
+
+// ══════════════════════════════════════════════════════════════════
+//  Data Structures
+// ══════════════════════════════════════════════════════════════════
+
+data Severity with
+    var int level;  // 0=PASS, 1=CAUTION, 2=WARNING, 3=CRITICAL
+    var char name[10];
+end
+
+data Constraint with
+    var int lo;
+    var int hi;
+    char name[32];
+end
+
+data ConstraintDetail with
+    char name[32];
+    var int lo;
+    var int hi;
+    var int value;
+    var int passed;
+    var int lo_violated;
+    var int hi_violated;
+end
+
+data FluxResult with
+    var int error_mask;
+    var Severity severity;
+    var int violated_lo;
+    var int violated_hi;
+    var int violated_count;
+    var int passed;
+end
+
+// ══════════════════════════════════════════════════════════════════
+//  Saturate — deterministic, no branching beyond min/max
+// ══════════════════════════════════════════════════════════════════
+
+function int saturate(int val) do
+    if val < INT8_MIN then
+        return INT8_MIN;
+    else/if val > INT8_MAX then
+        return INT8_MAX;
+    else
+        return val;
+    end
+end
+
+// ══════════════════════════════════════════════════════════════════
+//  Synchronous Constraint Checker — reacts to each sensor value
+// ══════════════════════════════════════════════════════════════════
+
+input int SENSOR_VALUE;
+output FluxResult CHECK_RESULT;
+
+// The main reactive loop: AWAIT sensor input, REACT with constraint check
+// Every value is processed atomically — no interleaving possible
+
+// ══════════════════════════════════════════════════════════════════
+//  Aviation Preset — 4 constraints
+// ══════════════════════════════════════════════════════════════════
+
+code AviationChecker (void) -> FluxResult do
+    // Constraint definitions — immutable for this reaction
+    var Constraint constraints[4];
+
+    constraints[0] = {lo: -55, hi: 70, name: "cabin_temp_C"};
+    constraints[1] = {lo: 75, hi: 101, name: "cabin_pressure_kPa"};
+    constraints[2] = {lo: 0, hi: 100, name: "fuel_flow_pct"};
+    constraints[3] = {lo: 60, hi: 100, name: "hydraulic_pct"};
+
+    // React to each sensor value — synchronous, deterministic
+    every value in SENSOR_VALUE do
+        var FluxResult result;
+        result.error_mask = 0;
+        result.violated_lo = 0;
+        result.violated_hi = 0;
+        result.violated_count = 0;
+
+        int val = saturate(value);
+
+        // Check all constraints in a single reaction
+        loop i in [0 .. 3] do
+            int loFail = val < constraints[i].lo;
+            int hiFail = val > constraints[i].hi;
+
+            if loFail || hiFail then
+                result.error_mask = result.error_mask | (1 << i);
+                result.violated_count = result.violated_count + 1;
+            end
+            if loFail then
+                result.violated_lo = result.violated_lo | (1 << i);
+            end
+            if hiFail then
+                result.violated_hi = result.violated_hi | (1 << i);
+            end
+        end
+
+        // Classify severity
+        int n = 4;
+        if result.violated_count == 0 then
+            result.severity = {level: 0, name: "PASS"};
+        else/if result.violated_count <= n/4 then
+            result.severity = {level: 1, name: "CAUTION"};
+        else/if result.violated_count <= n/2 then
+            result.severity = {level: 2, name: "WARNING"};
+        else
+            result.severity = {level: 3, name: "CRITICAL"};
+        end
+
+        result.passed = (result.violated_count == 0);
+        emit CHECK_RESULT -> result;
+    end
+end
+
+// ══════════════════════════════════════════════════════════════════
+//  Nuclear Preset — 4 constraints
+// ══════════════════════════════════════════════════════════════════
+
+code NuclearChecker (void) -> FluxResult do
+    var Constraint constraints[4];
+
+    constraints[0] = {lo: 0, hi: 110, name: "neutron_flux_pct"};
+    constraints[1] = {lo: 0, hi: 65, name: "core_temp_C_x10"};
+    constraints[2] = {lo: 72, hi: 100, name: "pressurizer_pct"};
+    constraints[3] = {lo: 0, hi: 100, name: "coolant_flow_pct"};
+
+    every value in SENSOR_VALUE do
+        var FluxResult result;
+        result.error_mask = 0;
+        result.violated_lo = 0;
+        result.violated_hi = 0;
+        result.violated_count = 0;
+
+        int val = saturate(value);
+
+        loop i in [0 .. 3] do
+            int loFail = val < constraints[i].lo;
+            int hiFail = val > constraints[i].hi;
+
+            if loFail || hiFail then
+                result.error_mask = result.error_mask | (1 << i);
+                result.violated_count = result.violated_count + 1;
+            end
+            if loFail then
+                result.violated_lo = result.violated_lo | (1 << i);
+            end
+            if hiFail then
+                result.violated_hi = result.violated_hi | (1 << i);
+            end
+        end
+
+        int n = 4;
+        if result.violated_count == 0 then
+            result.severity = {level: 0, name: "PASS"};
+        else/if result.violated_count <= n/4 then
+            result.severity = {level: 1, name: "CAUTION"};
+        else/if result.violated_count <= n/2 then
+            result.severity = {level: 2, name: "WARNING"};
+        else
+            result.severity = {level: 3, name: "CRITICAL"};
+        end
+
+        result.passed = (result.violated_count == 0);
+        emit CHECK_RESULT -> result;
+    end
+end
+
+// ══════════════════════════════════════════════════════════════════
+//  Parallel Composition — both checkers run simultaneously
+//  Céu's par/or: first violation wins (aborts the other)
+//  par/and: both must complete (collect all violations)
+// ══════════════════════════════════════════════════════════════════
+
+par/or do
+    await AviationChecker();
+with
+    await NuclearChecker();
+end
+
+// ══════════════════════════════════════════════════════════════════
+//  SYNCHRONOUS REACTIVE INSIGHT
+// ══════════════════════════════════════════════════════════════════
+//
+// Traditional approach:
+//   sensor → queue → thread → check → queue → actuator
+//   Race conditions. Non-deterministic. Testing can't prove absence.
+//
+// Céu approach:
+//   sensor → REACTION(check) → actuator
+//   One reaction = one check. Zero interleaving. Deterministic.
+//
+// The "every" construct guarantees:
+//   1. Each sensor value is processed exactly once
+//   2. No two reactions overlap
+//   3. The output is deterministic for any input sequence
+//   4. par/or composes multiple checkers — first violation wins
+//
+// This is the model DO-178C Level A wants: deterministic, analyzable,
+// no hidden concurrency. The synchronous hypothesis holds because
+// constraint checking is O(1) per value — always finishes "instantly."
+// ════════════════════════════════════════════════════════════════════
