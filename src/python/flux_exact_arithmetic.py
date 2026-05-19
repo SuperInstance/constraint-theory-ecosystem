@@ -60,7 +60,7 @@ SEVERITY_TABLE = [
 @dataclass
 class CheckResult:
     """Universal result across all checkers."""
-    passed: bool
+    passed: bool = False
     error_mask: int = 0
     severity: Severity = Severity.PASS
     violated_lo: int = 0
@@ -125,15 +125,19 @@ class FloatExactChecker:
 
     @staticmethod
     def _is_exact_float(x: float) -> bool:
-        """Check if x is exactly representable as a float64."""
-        # Round-trip test: if float->string->float gives the same value, it's exact
-        # More precisely: x is exact if it's a multiple of 2^(e-52) for its exponent
+        """Check if x is exactly representable as a float64.
+        
+        A float is exact iff its rational representation has a denominator
+        that is a power of 2 (and fits in 52-bit mantissa + exponent range).
+        """
         if x == 0.0:
             return True
-        # Check if the decimal representation round-trips exactly
-        s = repr(x)
-        reconstructed = float(s)
-        return reconstructed == x and math.isfinite(x)
+        if not math.isfinite(x):
+            return False
+        f = Fraction(x).limit_denominator(2**53)
+        # Check if denominator is a power of 2
+        d = f.denominator
+        return d & (d - 1) == 0  # power of 2
 
     def check(self, value: Number) -> CheckResult:
         val = float(value)
