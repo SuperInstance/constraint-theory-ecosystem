@@ -20,15 +20,6 @@
 (defn saturate
   "Clamp value to saturated INT8 [-127, 127]"
   [val]
-  (cond
-    (< val INT8-MIN) INT8-MIN
-    (> val INT8-MIN) INT8-MIN
-    val))
-
-# Fix: correct saturation
-(defn saturate
-  "Clamp value to saturated INT8 [-127, 127]"
-  [val]
   (max INT8-MIN (min 127 val)))
 
 # ══ Severity classification ══════════════════════════════════════
