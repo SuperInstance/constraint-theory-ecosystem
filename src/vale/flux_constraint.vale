@@ -1,0 +1,215 @@
+// FLUX Constraint Engine — Vale (2020, Memory Safety Without GC)
+// Pure INT8 saturated constraint checking. Zero dependencies.
+//
+// The insight: constraint checking with ZERO unpredictable pauses.
+// No GC, no reference counting, no stop-the-world. Vale uses
+// "generational references" — memory-safe without any runtime cost.
+// The entire check runs in O(1) space with zero GC pressure.
+// Hard real-time systems can run this without timing jitter.
+//
+// "No GC means no unpredictable pauses. Region-based memory means
+//  O(1) cleanup. Constraint checking in hard real-time systems."
+
+import std.panic.*;
+
+// ══ Constants ════════════════════════════════════════════════════
+
+export fn INT8_MIN() int { -127 }
+export fn INT8_MAX() int { 127 }
+
+// ══ Severity ═════════════════════════════════════════════════════
+
+export enum Severity {
+  Pass(0),
+  Caution(1),
+  Warning(2),
+  Critical(3),
+}
+
+impl Severity {
+  fn name(this) str {
+    match this {
+      Severity::Pass => "PASS",
+      Severity::Caution => "CAUTION",
+      Severity::Warning => "WARNING",
+      Severity::Critical => "CRITICAL",
+    }
+  }
+
+  fn level(this) int {
+    match this {
+      Severity::Pass => 0,
+      Severity::Caution => 1,
+      Severity::Warning => 2,
+      Severity::Critical => 3,
+    }
+  }
+}
+
+// ══ Saturate — pure function, zero allocation ════════════════════
+
+export pure fn saturate(val int) int {
+  if val < INT8_MIN() { INT8_MIN() }
+  else if val > INT8_MAX() { INT8_MAX() }
+  else { val }
+}
+
+// ══ Constraint — stack-allocated, no heap ═══════════════════════
+
+export struct ConstraintDef {
+  lo int,
+  hi int,
+  name str,
+}
+
+impl ConstraintDef {
+  fn new(lo int, hi int, name str) ConstraintDef {
+    ConstraintDef(
+      lo = saturate(lo),
+      hi = saturate(hi),
+      name = name,
+    )
+  }
+}
+
+// ══ FluxResult — stack-allocated result ═════════════════════════
+
+export struct FluxResult {
+  error_mask int,
+  severity Severity,
+  violated_lo int,
+  violated_hi int,
+  violated_count int,
+  passed bool,
+}
+
+impl FluxResult {
+  fn new() FluxResult {
+    FluxResult(
+      error_mask = 0,
+      severity = Severity::Pass,
+      violated_lo = 0,
+      violated_hi = 0,
+      violated_count = 0,
+      passed = true,
+    )
+  }
+}
+
+// ══ Check — pure stack computation, O(1) space ══════════════════
+
+export fn check(constraints []ConstraintDef, value int) FluxResult {
+  // Entirely stack-based. No heap allocation. No GC pressure.
+  let val = saturate(value);
+  var result = FluxResult::new();
+  var error_mask = 0;
+  var violated_lo = 0;
+  var violated_hi = 0;
+  var violated_count = 0;
+  var i = 0;
+
+  while i < len(constraints) {
+    let c = constraints[i];
+    let lo_fail = val < c.lo;
+    let hi_fail = val > c.hi;
+
+    if lo_fail or hi_fail {
+      error_mask = error_mask bitor (1 << i);
+      violated_count = violated_count + 1;
+    }
+    if lo_fail {
+      violated_lo = violated_lo bitor (1 << i);
+    }
+    if hi_fail {
+      violated_hi = violated_hi bitor (1 << i);
+    }
+
+    i = i + 1;
+  }
+
+  let nc = len(constraints);
+  let sev = if violated_count == 0 {
+    Severity::Pass
+  } else if violated_count * 4 <= nc {
+    Severity::Caution
+  } else if violated_count * 2 <= nc {
+    Severity::Warning
+  } else {
+    Severity::Critical
+  };
+
+  FluxResult(
+    error_mask = error_mask,
+    severity = sev,
+    violated_lo = violated_lo,
+    violated_hi = violated_hi,
+    violated_count = violated_count,
+    passed = violated_count == 0,
+  )
+}
+
+// ══ Presets — static arrays, zero heap ══════════════════════════
+
+export fn aviation() [ConstraintDef; 4] {
+  [
+    ConstraintDef::new(-55, 70, "cabin_temp_C"),
+    ConstraintDef::new(75, 101, "cabin_pressure_kPa"),
+    ConstraintDef::new(0, 100, "fuel_flow_pct"),
+    ConstraintDef::new(60, 100, "hydraulic_pct"),
+  ]
+}
+
+export fn automotive() [ConstraintDef; 4] {
+  [
+    ConstraintDef::new(-40, 60, "battery_temp_C"),
+    ConstraintDef::new(0, 100, "soc_pct"),
+    ConstraintDef::new(0, 100, "charge_rate_pct"),
+    ConstraintDef::new(20, 80, "cabin_temp_C"),
+  ]
+}
+
+export fn nuclear() [ConstraintDef; 4] {
+  [
+    ConstraintDef::new(0, 110, "neutron_flux_pct"),
+    ConstraintDef::new(0, 65, "core_temp_C_x10"),
+    ConstraintDef::new(72, 100, "pressurizer_pct"),
+    ConstraintDef::new(0, 100, "coolant_flow_pct"),
+  ]
+}
+
+// ══ Demo ═════════════════════════════════════════════════════════
+
+export fn main() {
+  println("═══ FLUX Constraint Engine — Vale ═══");
+
+  let aviation_constraints = aviation();
+
+  let r1 = check(aviation_constraints, 60);
+  println("  Aviation val=60: " + r1.severity.name() +
+    " mask=0x" + str(r1.error_mask) + " passed=" + str(r1.passed));
+
+  let r2 = check(aviation_constraints, -60);
+  println("  Aviation val=-60: " + r2.severity.name() +
+    " mask=0x" + str(r2.error_mask) + " passed=" + str(r2.passed));
+
+  // No GC pause. No allocation. No jitter.
+  // The entire check ran on the stack. O(1) space.
+}
+
+// ══ Paradigm Insight ═════════════════════════════════════════════
+//
+// No GC means no unpredictable pauses.
+// Region-based memory means O(1) cleanup.
+// Constraint checking in hard real-time systems.
+//
+// In Vale:
+// - Every value lives on the stack or in a region
+// - No garbage collector thread stealing CPU cycles
+// - No stop-the-world pauses breaking timing guarantees
+// - Constraint checking is a PURE STACK COMPUTATION
+// - The worst-case execution time is DETERMINISTIC
+//
+// For safety-critical systems (DO-178C, ISO 26262), this matters:
+// you can PROVE the check always completes in bounded time.
+// No GC means no need to analyze GC pause impact on WCET.
+// The check IS the WCET. The WCET IS the check.

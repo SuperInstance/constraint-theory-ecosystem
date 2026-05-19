@@ -1,223 +1,224 @@
 // FLUX Constraint Engine — Koka (2012, Algebraic Effects)
 // Pure INT8 saturated constraint checking. Zero dependencies.
 //
-// The insight: Koka's algebraic effects let you SWAP the enforcement
-// strategy without changing the constraint logic. Check against memory?
-// Check against a network sensor? Check with logging? Same code,
-// different effect handler. The constraint is pure; the policy is pluggable.
+// The insight: SWAP enforcement strategies as EFFECTS. Koka's
+// algebraic effects let you define what "checking" means separately
+// from the check logic. The same code can check synchronously,
+// asynchronously, with logging, or with recovery — by swapping
+// the EFFECT HANDLER. The enforcement is orthogonal to the logic.
 //
-// "Effects separate WHAT to check from HOW to handle violations."
-//
-// Usage:
-//   koka flux_constraint.kk
-//   koka run flux_constraint.kk
+// "The check is pure logic. The enforcement is a handler.
+//  Swap the handler, change the behavior. The logic never changes."
 
-// ══ Constants ══════════════════════════════════════════════════════
+// ══ Constants ═══════════════════════════════════════════════════
 
 const int8-min : int = -127
 const int8-max : int = 127
 const max-constraints : int = 8
 
-// ══ Types ══════════════════════════════════════════════════════════
+// ══ Severity ═════════════════════════════════════════════════════
 
-type severity
-  Pass
-  Caution
-  Warning
-  Critical
+type severity =
+  | Pass
+  | Caution
+  | Warning
+  | Critical
 
-type constraint
-  Constraint( lo : int, hi : int, name : string )
-
-type flux-result
-  FluxResult(
-    error-mask    : int,
-    severity      : severity,
-    violated-lo   : int,
-    violated-hi   : int,
-    violated-count: int,
-    passed        : bool
-  )
-
-// ══ Effect: Violation Policy ══════════════════════════════════════
-// The key Koka insight: violation handling is an EFFECT.
-// Swap handlers without changing the check logic.
-
-effect violation-policy {
-  fun on-violation( constraint-name : string, value : int, lo : int, hi : int ) : ()
+fun severity-name(s : severity) : string {
+  match s {
+    Pass     -> "PASS"
+    Caution  -> "CAUTION"
+    Warning  -> "WARNING"
+    Critical -> "CRITICAL"
+  }
 }
 
-// ══ Saturate ══════════════════════════════════════════════════════
+// ══ Saturate ═════════════════════════════════════════════════════
 
-pub fun saturate( val : int ) : int {
+fun saturate(val : int) : int {
   if val < int8-min then int8-min
   else if val > int8-max then int8-max
   else val
 }
 
-// ══ Severity Classification ══════════════════════════════════════
+// ══ Constraint ═══════════════════════════════════════════════════
 
-fun classify-severity( violated : int, total : int ) : severity {
-  if violated == 0 then Pass
-  else if violated * 4 <= total then Caution
-  else if violated * 2 <= total then Warning
-  else Critical
+type constraint = {
+  lo   : int,
+  hi   : int,
+  name : string
 }
 
-// ══ Core Check (pure logic) ══════════════════════════════════════
+// ══ FluxResult ═══════════════════════════════════════════════════
 
-// The check function is pure logic — no side effects.
-// The violation-policy effect lets handlers plug in behavior.
-pub fun check-one( c : constraint, value : int, idx : int )
-  : (bool, bool, bool)
-{
-  val val = saturate(value)
-  val lo-fail = val < c.lo
-  val hi-fail = val > c.hi
-  val passed = not lo-fail and not hi-fail
-  (lo-fail, hi-fail, passed)
+type flux-result = {
+  error-mask    : int,
+  severity      : severity,
+  violated-lo   : int,
+  violated-hi   : int,
+  violated-count : int,
+  passed        : bool
 }
 
-pub fun check( constraints : list<constraint>, value : int )
-  : flux-result
-  with violation-policy
-{
+// ══ Core check logic — PURE, no effects ════════════════════════
+
+fun check-raw(constraints : list<constraint>, value : int) : flux-result {
   val val = saturate(value)
-  var error-mask := 0
-  var violated-lo := 0
-  var violated-hi := 0
-  var violated-count := 0
-  var i := 0
+  var error-mask = 0
+  var violated-lo = 0
+  var violated-hi = 0
+  var violated-count = 0
+  var idx = 0
 
   for c in constraints {
-    val (lo-fail, hi-fail, passed) = check-one(c, val, i)
-    if not passed {
-      error-mask := error-mask + (1 << i)
+    val lo-fail = val < c.lo
+    val hi-fail = val > c.hi
+    if lo-fail || hi-fail {
+      error-mask := error-mask | (1 << idx)
       violated-count := violated-count + 1
-      // Invoke the effect — handler decides what to do
-      violation-policy.on-violation(c.name, val, c.lo, c.hi)
     }
-    if lo-fail { violated-lo := violated-lo + (1 << i) }
-    if hi-fail { violated-hi := violated-hi + (1 << i) }
-    i := i + 1
+    if lo-fail { violated-lo := violated-lo | (1 << idx) }
+    if hi-fail { violated-hi := violated-hi | (1 << idx) }
+    idx := idx + 1
   }
 
-  val n = constraints.length
-  val sev = classify-severity(violated-count, n)
+  val nc = list-length(constraints)
+  val sev = if violated-count == 0 then Pass
+            else if violated-count * 4 <= nc then Caution
+            else if violated-count * 2 <= nc then Warning
+            else Critical
 
-  FluxResult(error-mask, sev, violated-lo, violated-hi, violated-count,
-             violated-count == 0)
+  { error-mask, severity = sev, violated-lo, violated-hi, violated-count, passed = violated-count == 0 }
 }
 
-// ══ Effect Handlers ═══════════════════════════════════════════════
-// Different policies for violation handling — swap without touching check logic.
+// ══ Effect: constraint enforcement ══════════════════════════════
+// The KEY insight: enforcement is an EFFECT. The check logic is pure.
+// The handler decides what happens on violation.
 
-// Handler 1: Silent (pure computation, no logging)
-handler silent-handler {
-  fun on-violation(name, value, lo, hi) { () }
+effect constraint {
+  fun violate(result : flux-result, constraint-name : string) : flux-result
 }
 
-// Handler 2: Console logger
-handler logging-handler {
-  fun on-violation(name, value, lo, hi) {
-    println("  VIOLATION: " + name + "=" + value.show() +
-            " outside [" + lo.show() + ", " + hi.show() + "]")
+// ══ Check with effect ═══════════════════════════════════════════
+// This function checks constraints and invokes the `violate` effect
+// if any constraint fails. The HANDLER decides what to do.
+
+fun check(constraints : list<constraint>, value : int) : flux-result {
+  val result = check-raw(constraints, value)
+  if !result.passed {
+    // Invoke effect — handler decides what happens
+    with constraint { violate(result, constraints[0].name) }
+  } else {
+    result
   }
 }
 
-// Handler 3: Counter (accumulates violation count as side effect)
-handler counter-handler {
-  val count = ref(0)
-  fun on-violation(name, value, lo, hi) {
-    count := count.get + 1
+// ══ Handlers: different enforcement strategies ══════════════════
+
+// Handler 1: Silent — just return the result (default)
+handler silent = {
+  return(x) -> x
+  fun constraint.violate(result, name) -> result
+}
+
+// Handler 2: Logging — print violations to console
+handler logging = {
+  return(x) -> x
+  fun constraint.violate(result, name) {
+    println("VIOLATION: " ++ name ++ " severity=" ++ severity-name(result.severity))
+    result
   }
 }
 
-// ══ Industry Presets ══════════════════════════════════════════════
+// Handler 3: Strict — throw exception on any violation
+handler strict = {
+  return(x) -> x
+  fun constraint.violate(result, name) {
+    error("Constraint violation: " ++ name ++ " [" ++ int-to-string(result.error-mask) ++ "]")
+  }
+}
+
+// Handler 4: Recovery — apply corrective action and continue
+handler recover(f : (flux-result) -> flux-result) = {
+  return(x) -> x
+  fun constraint.violate(result, name) {
+    println("RECOVERING: " ++ name)
+    f(result)  // Apply recovery function
+  }
+}
+
+// ══ Presets ═════════════════════════════════════════════════════
 
 val aviation = [
-  Constraint(-55, 70, "cabin_temp_C"),
-  Constraint(75, 101, "cabin_pressure_kPa"),
-  Constraint(0, 100, "fuel_flow_pct"),
-  Constraint(60, 100, "hydraulic_pct")
+  { lo = -55, hi = 70,  name = "cabin_temp_C" },
+  { lo = 75,  hi = 101, name = "cabin_pressure_kPa" },
+  { lo = 0,   hi = 100, name = "fuel_flow_pct" },
+  { lo = 60,  hi = 100, name = "hydraulic_pct" }
 ]
 
-val medical = [
-  Constraint(36, 38, "body_temp_C"),
-  Constraint(60, 100, "heart_rate_bpm"),
-  Constraint(95, 100, "spo2_pct"),
-  Constraint(80, 120, "bp_systolic_mmHg")
+val automotive = [
+  { lo = -40, hi = 60,  name = "battery_temp_C" },
+  { lo = 0,   hi = 100, name = "soc_pct" },
+  { lo = 0,   hi = 100, name = "charge_rate_pct" },
+  { lo = 20,  hi = 80,  name = "cabin_temp_C" }
 ]
 
-val energy = [
-  Constraint(49, 51, "grid_freq_Hz_x10"),
-  Constraint(95, 105, "voltage_pct"),
-  Constraint(0, 80, "transformer_temp_C"),
-  Constraint(0, 100, "line_load_pct")
+val nuclear = [
+  { lo = 0,   hi = 110, name = "neutron_flux_pct" },
+  { lo = 0,   hi = 65,  name = "core_temp_C_x10" },
+  { lo = 72,  hi = 100, name = "pressurizer_pct" },
+  { lo = 0,   hi = 100, name = "coolant_flow_pct" }
 ]
 
-val robotics = [
-  Constraint(-100, 100, "joint_torque_pct"),
-  Constraint(0, 100, "speed_pct"),
-  Constraint(0, 100, "force_pct"),
-  Constraint(-127, 127, "position_mm")
-]
+// ══ Demo ═════════════════════════════════════════════════════════
 
-// ══ Main ══════════════════════════════════════════════════════════
+fun main() {
+  println("═══ FLUX Constraint Engine — Koka ═══")
+  println("")
 
-pub fun main() {
-  println("═══ FLUX Constraint Engine — Koka (Algebraic Effects) ═══\n")
+  // Same check logic, different enforcement strategies:
 
-  // Silent mode — pure computation
-  println("Aviation (silent handler):")
-  with silent-handler {
-    val r = check(aviation, 25)
-    println("  val=25:  passed=" + r.passed.show())
+  // Silent: just returns result
+  println("── Silent handler ──")
+  with silent {
+    val r = check(aviation, 60)
+    println("  val=60: " ++ severity-name(r.severity) ++ " mask=0x" ++ int-to-string(r.error-mask))
   }
 
-  // Logging mode — violations printed
-  println("\nAviation (logging handler):")
-  with logging-handler {
-    val r = check(aviation, -60)
-    println("  val=-60: passed=" + r.passed.show() +
-            " mask=0x" + r.error-mask.show())
+  // Logging: prints violations
+  println("── Logging handler ──")
+  with logging {
+    val r = check(aviation, 60)
+    println("  val=60: " ++ severity-name(r.severity) ++ " mask=0x" ++ int-to-string(r.error-mask))
   }
 
-  // Medical with logging
-  println("\nMedical (logging handler):")
-  with logging-handler {
-    val r = check(medical, 42)
-    println("  val=42:  severity=" + severity-name(r.severity) +
-            " passed=" + r.passed.show())
-  }
+  // Strict: would throw on violation (commented out to avoid crash)
+  // with strict {
+  //   val r = check(aviation, -60)
+  // }
 
-  println("\n═══ Same constraint logic. Different policies. Effects FTW. ═══")
-}
-
-fun severity-name(s : severity) : string {
-  match s {
-    Pass -> "PASS"
-    Caution -> "CAUTION"
-    Warning -> "WARNING"
-    Critical -> "CRITICAL"
+  // Recovery: applies correction and continues
+  println("── Recovery handler ──")
+  with recover(fn(r) { println("  → Applied recovery action"); r }) {
+    val r = check(aviation, 60)
+    println("  val=60: " ++ severity-name(r.severity))
   }
 }
 
-// ══ Paradigm Insight ══════════════════════════════════════════════
+// ══ Paradigm Insight ═════════════════════════════════════════════
 //
-// In most languages, the check function and the violation handling
-// are entangled — if you want to log, you add print statements.
-// If you want to count, you add a counter. The policy leaks into the logic.
+// Koka's algebraic effects separate WHAT the check does from
+// WHAT HAPPENS on violation. The check logic is ALWAYS the same.
+// The handler is swappable at the call site.
 //
-// Koka's algebraic effects SEPARATE them:
-//   check() is pure constraint logic
-//   on-violation() is the policy — swappable via handlers
+// In a fleet of agents:
+// - Agent A uses `silent` handler (monitoring only)
+// - Agent B uses `logging` handler (audit trail)
+// - Agent C uses `strict` handler (fail-fast)
+// - Agent D uses `recover` handler (auto-remediation)
 //
-// This means:
-//   - Production: silent handler (zero overhead)
-//   - Debugging: logging handler (prints every violation)
-//   - Testing: counter handler (accumulates for assertions)
-//   - Safety-critical: abort handler (halts on first violation)
-//
-// Same constraint engine. Different enforcement strategies.
-// The policy is a first-class composable unit.
+// SAME CHECK CODE. DIFFERENT BEHAVIOR. ZERO CODE DUPLICATION.
+// The effect handler IS the enforcement policy.
+// The enforcement policy IS the effect handler.
+// This is the deepest insight: check logic and enforcement
+// are ORTHOGONAL dimensions. Koka makes this explicit.
