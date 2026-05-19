@@ -249,12 +249,28 @@ class ProtocolExecutor:
                     target = step.branch[output]
                     sr.branch_taken = target
                     # Find target step
+                    found = False
                     for j, s in enumerate(self.protocol.steps):
                         if s.name == target:
                             step_idx = j
+                            found = True
                             break
-                    else:
-                        step_idx += 1
+                    if not found:
+                        # Branch target is a contingency — apply it and stop
+                        # Look up by branch output first, then by target name
+                        contingency = self.protocol.contingencies.get(output) or self.protocol.contingencies.get(target)
+                        if contingency:
+                            # Parse contingency: "set all error bits, severity=Critical"
+                            sev_name = "CRITICAL"
+                            for s_name in ("PASS", "CAUTION", "WARNING", "CRITICAL"):
+                                if s_name in contingency.upper():
+                                    sev_name = s_name
+                                    break
+                            ctx["error_mask"] = (1 << self.protocol.n_constraints) - 1
+                            ctx["severity"] = Severity[sev_name]
+                            ctx["proof_hash"] = f"contingency:{target}"
+                        step_results.append(sr)
+                        break  # stop execution after contingency
                     step_results.append(sr)
                     continue
                 else:
@@ -272,9 +288,9 @@ class ProtocolExecutor:
             step_idx += 1
 
         # ── Phase 3: Build result data ──
-        error_mask = ctx.get("Check each constraint", 0)
-        sev = ctx.get("Classify severity", Severity.PASS)
-        proof = ctx.get("Generate proof hash", "no-proof")
+        error_mask = ctx.get("error_mask", ctx.get("Check each constraint", 0))
+        sev = ctx.get("severity", ctx.get("Classify severity", Severity.PASS))
+        proof = ctx.get("proof_hash", ctx.get("Generate proof hash", "no-proof"))
 
         result_data = {
             "error_mask": error_mask,
@@ -393,7 +409,7 @@ class ProtocolRefiner:
         # Build improved steps
         steps = []
 
-        # Step 1: Validate inputs (enhanced)
+        # Step 0: Validate inputs (enhanced)
         def validate_inputs_v2(ctx):
             vals = ctx["values"]
             n = ctx["n"]
@@ -417,33 +433,7 @@ class ProtocolRefiner:
             doc="Enhanced: checks NaN/Inf BEFORE any constraint comparison",
         ))
 
-        # Handle critical sentinel (NaN/Inf)
-        def handle_critical(ctx):
-            n = ctx["n"]
-            ctx["error_mask"] = (1 << n) - 1
-            ctx["severity"] = Severity.CRITICAL
-            return "all_bits_set"
-
-        steps.append(Step(
-            name="Handle critical sentinel",
-            code=handle_critical,
-            doc="Sets all error bits for NaN/Inf — zero false negatives",
-        ))
-
-        # Handle empty
-        def handle_empty(ctx):
-            ctx["error_mask"] = 0
-            ctx["severity"] = Severity.PASS
-            ctx["warnings"] = ["empty_input: returning PASS with warning"]
-            return "pass_with_warning"
-
-        steps.append(Step(
-            name="Handle empty",
-            code=handle_empty,
-            doc="Empty input returns PASS with warning",
-        ))
-
-        # Step 2: Check constraints (with re-verify)
+        # Step 1: Check constraints (with re-verify) — normal path
         def check_constraints_v2(ctx):
             vals = ctx["values"]
             bounds = ctx["bounds"]
@@ -471,7 +461,7 @@ class ProtocolRefiner:
             doc="Enhanced: includes re-verification pass to catch any missed violations",
         ))
 
-        # Step 3: Build error mask (just reads from ctx)
+        # Step 2: Build error mask — normal path
         def build_error_mask(ctx):
             return ctx.get("error_mask", 0)
 
@@ -481,7 +471,7 @@ class ProtocolRefiner:
             doc="Reads the error mask from context",
         ))
 
-        # Step 4: Classify severity (with intermediate bands)
+        # Step 3: Classify severity (with intermediate bands) — normal path
         def classify_severity_v2(ctx):
             mask = ctx.get("error_mask", 0)
             n = bin(mask).count("1")
@@ -502,7 +492,7 @@ class ProtocolRefiner:
             doc="Enhanced: CAUTION at 1-2, WARNING at 3-4, CRITICAL at 5+",
         ))
 
-        # Step 5: Generate proof hash
+        # Step 4: Generate proof hash — always runs last
         def generate_proof_v2(ctx):
             mask = ctx.get("error_mask", 0)
             vals = ctx["values"]
@@ -520,6 +510,34 @@ class ProtocolRefiner:
             name="Generate proof hash",
             code=generate_proof_v2,
             doc="SHA-256 hash of inputs + result for audit trail",
+        ))
+
+        # Step 5: Handle critical sentinel (NaN/Inf) — ONLY reachable via branch
+        def handle_critical(ctx):
+            n = ctx["n"]
+            ctx["error_mask"] = (1 << n) - 1
+            ctx["severity"] = Severity.CRITICAL
+            return "all_bits_set"
+
+        steps.append(Step(
+            name="Handle critical sentinel",
+            code=handle_critical,
+            branch={"all_bits_set": "Generate proof hash"},
+            doc="Sets all error bits for NaN/Inf — zero false negatives. Branches to proof generation.",
+        ))
+
+        # Step 6: Handle empty — ONLY reachable via branch
+        def handle_empty(ctx):
+            ctx["error_mask"] = 0
+            ctx["severity"] = Severity.PASS
+            ctx["warnings"] = ["empty_input: returning PASS with warning"]
+            return "pass_with_warning"
+
+        steps.append(Step(
+            name="Handle empty",
+            code=handle_empty,
+            branch={"pass_with_warning": "Generate proof hash"},
+            doc="Empty input returns PASS with warning. Branches to proof generation.",
         ))
 
         return MayoProtocol(
