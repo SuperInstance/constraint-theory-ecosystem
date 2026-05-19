@@ -1,0 +1,169 @@
+# FLUX Constraint Engine — GUARD DSL
+# Pure constraint specification in the GUARD language.
+# The constraint IS the implementation. No compilation needed.
+#
+# This file is both documentation AND executable specification.
+#   guard check flux_constraint.guard --value 60
+#   guard compile flux_constraint.guard --target avx512
+#   fluxc bench flux_constraint.guard -n 10M
+#
+# "GD&T gives hardware a language for dimensions.
+#  GUARD gives software a language for constraints."
+
+# ══════════════════════════════════════════════════════════════════════
+#  CORE: Saturation rule — all values live in INT8 [-127, 127]
+# ══════════════════════════════════════════════════════════════════════
+
+RULE saturate: value CLAMPED TO [-127, 127] BEFORE CHECK
+RULE max_constraints: 8 PER SENSOR
+RULE severity:
+    0 violations   → PASS
+    ≤25% violated  → CAUTION
+    ≤50% violated  → WARNING
+    >50% violated  → CRITICAL
+
+# ══════════════════════════════════════════════════════════════════════
+#  AVIATION — Flight-critical bounds
+# ══════════════════════════════════════════════════════════════════════
+
+PRESET aviation:
+    GUARD cabin_temp_C in [-55, 70]                     with priority HIGH
+    GUARD cabin_pressure_kPa in [75, 101]               with priority CRITICAL
+    GUARD fuel_flow_pct in [0, 100]                     with priority HIGH
+    GUARD hydraulic_pct in [60, 100]                     with priority CRITICAL
+END
+
+# ══════════════════════════════════════════════════════════════════════
+#  AUTOMOTIVE — EV battery and cabin safety
+# ══════════════════════════════════════════════════════════════════════
+
+PRESET automotive:
+    GUARD battery_temp_C in [-40, 60]                   with priority CRITICAL
+    GUARD soc_pct in [0, 100]                           with priority HIGH
+    GUARD charge_rate_pct in [0, 100]                    with priority HIGH
+    GUARD cabin_temp_C in [20, 80]                       with priority LOW
+END
+
+# ══════════════════════════════════════════════════════════════════════
+#  MARITIME — Ocean vessel monitoring
+# ══════════════════════════════════════════════════════════════════════
+
+PRESET maritime:
+    GUARD sea_temp_C in [-2, 35]                         with priority LOW
+    GUARD hull_integrity_pct in [50, 100]                with priority CRITICAL
+    GUARD wave_height_m in [0, 50]                       with priority HIGH
+    GUARD wind_speed_kn in [0, 80]                       with priority HIGH
+END
+
+# ══════════════════════════════════════════════════════════════════════
+#  MEDICAL — Patient vital signs
+# ══════════════════════════════════════════════════════════════════════
+
+PRESET medical:
+    GUARD body_temp_C in [36, 38]                        with priority CRITICAL
+    GUARD heart_rate_bpm in [60, 100]                    with priority HIGH
+    GUARD spo2_pct in [95, 100]                          with priority CRITICAL
+    GUARD bp_systolic_mmHg in [80, 120]                  with priority HIGH
+END
+
+# ══════════════════════════════════════════════════════════════════════
+#  ENERGY — Grid stability
+# ══════════════════════════════════════════════════════════════════════
+
+PRESET energy:
+    GUARD grid_freq_Hz_x10 in [49, 51]                  with priority CRITICAL
+    GUARD voltage_pct in [95, 105]                       with priority CRITICAL
+    GUARD transformer_temp_C in [0, 80]                  with priority HIGH
+    GUARD line_load_pct in [0, 100]                      with priority HIGH
+END
+
+# ══════════════════════════════════════════════════════════════════════
+#  NUCLEAR — Reactor safety limits
+# ══════════════════════════════════════════════════════════════════════
+
+PRESET nuclear:
+    GUARD neutron_flux_pct in [0, 110]                   with priority CRITICAL
+    GUARD core_temp_C_x10 in [0, 65]                     with priority CRITICAL
+    GUARD pressurizer_pct in [72, 100]                   with priority CRITICAL
+    GUARD coolant_flow_pct in [0, 100]                    with priority CRITICAL
+END
+
+# ══════════════════════════════════════════════════════════════════════
+#  RAILWAY — Train control systems
+# ══════════════════════════════════════════════════════════════════════
+
+PRESET railway:
+    GUARD speed_pct in [0, 100]                          with priority HIGH
+    GUARD brake_pressure_pct in [0, 100]                 with priority CRITICAL
+    GUARD door_interlock in [0, 1]                       with priority CRITICAL
+    GUARD track_temp_C in [0, 80]                        with priority LOW
+END
+
+# ══════════════════════════════════════════════════════════════════════
+#  ROBOTICS — Industrial robot safety
+# ══════════════════════════════════════════════════════════════════════
+
+PRESET robotics:
+    GUARD joint_torque_pct in [-100, 100]                with priority HIGH
+    GUARD speed_pct in [0, 100]                          with priority HIGH
+    GUARD force_pct in [0, 100]                          with priority HIGH
+    GUARD position_mm in [-127, 127]                     with priority MEDIUM
+END
+
+# ══════════════════════════════════════════════════════════════════════
+#  SPACE — Spacecraft operations
+# ══════════════════════════════════════════════════════════════════════
+
+PRESET space:
+    GUARD temp_C in [-40, 50]                            with priority HIGH
+    GUARD solar_panel_pct in [0, 100]                    with priority MEDIUM
+    GUARD propellant_pct in [0, 100]                     with priority CRITICAL
+    GUARD battery_pct in [0, 100]                        with priority HIGH
+END
+
+# ══════════════════════════════════════════════════════════════════════
+#  UNDERWATER — Submersible operations
+# ══════════════════════════════════════════════════════════════════════
+
+PRESET underwater:
+    GUARD depth_pct in [0, 100]                          with priority CRITICAL
+    GUARD battery_pct in [0, 100]                        with priority HIGH
+    GUARD water_temp_C in [-5, 35]                       with priority MEDIUM
+    GUARD thruster_pct in [0, 100]                       with priority HIGH
+END
+
+# ══════════════════════════════════════════════════════════════════════
+#  COMPOSITE — Cross-domain cascade monitoring
+#  When multiple domains intersect (e.g., launch site = aviation + space)
+# ══════════════════════════════════════════════════════════════════════
+
+PRESET composite_launch:
+    GUARD pad_temp_C in [-40, 50]                        with priority HIGH
+    GUARD wind_speed_kn in [0, 35]                       with priority CRITICAL
+    GUARD propellant_pct in [95, 100]                    with priority CRITICAL
+    GUARD range_clear in [1, 1]                          with priority CRITICAL
+END
+
+# ══════════════════════════════════════════════════════════════════════
+#  FLUX LANGUAGE SELF-DESCRIPTION
+# ══════════════════════════════════════════════════════════════════════
+#
+# The GUARD DSL is the purest expression of the FLUX Constraint Engine.
+# Every other implementation (Rust, Python, C, Zig, Forth, ...) is a
+# translation of THIS language into a host syntax.
+#
+# GUARD semantics:
+#   GUARD <name> in [lo, hi]        → range check
+#   GUARD <name> > value            → lower bound
+#   GUARD <name> < value            → upper bound
+#   with priority <level>           → CRITICAL > HIGH > MEDIUM > LOW
+#
+# Compilation targets:
+#   guard compile <file> --target avx512     → SIMD C
+#   guard compile <file> --target x86_64     → native JIT (36 bytes)
+#   guard compile <file> --target fortran    → Fortran module
+#   guard compile <file> --target wasm       → WASM module
+#   guard compile <file> --target rust       → Rust crate
+#
+# The constraint is the specification. The specification is the code.
+# No drift between design intent and runtime behavior. Ever.
