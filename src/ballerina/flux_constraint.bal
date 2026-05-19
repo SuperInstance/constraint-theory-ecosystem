@@ -1,54 +1,37 @@
-// FLUX Constraint Engine — Ballerina (2017, Network-Native)
+// FLUX Constraint Engine — Ballerina (Service Mesh Constraints)
 // Pure INT8 saturated constraint checking. Zero dependencies.
 //
-// The insight: constraint checking as a NETWORK INTERMEDIARY.
-// A service that sits between sensors and control systems,
-// enforcing constraints at the network boundary.
-// No sensor talks to the controller without passing through constraints.
+// The insight: constraints don't live in isolation — they live in NETWORKS.
+// Ballerina's network-first design means constraints are checked AT THE
+// service boundary, IN the intermediary, BEFORE data enters your system.
+// The network IS the enforcement layer.
 //
-// "Constraints at the network boundary. The checker IS the service.
-//  Every sensor reading flows through the constraint layer before
-//  reaching the actuator. The network topology IS the safety architecture."
+// "Constraints live at network boundaries. Ballerina checks them
+//  in the service mesh, before data reaches your code."
 
 import ballerina/io;
 
-// ══════════════════════════════════════════════════════════════════
-//  Constants
-// ══════════════════════════════════════════════════════════════════
+// ══ Constants ════════════════════════════════════════════════════
 
 const INT8_MIN = -127;
 const INT8_MAX = 127;
 const MAX_CONSTRAINTS = 8;
 
-// ══════════════════════════════════════════════════════════════════
-//  Severity Enum
-// ══════════════════════════════════════════════════════════════════
+// ══ Severity ═════════════════════════════════════════════════════
 
 enum Severity {
-    PASS = 0,
-    CAUTION = 1,
-    WARNING = 2,
-    CRITICAL = 3
+    PASS,
+    CAUTION,
+    WARNING,
+    CRITICAL
 }
 
-// ══════════════════════════════════════════════════════════════════
-//  Data Structures
-// ══════════════════════════════════════════════════════════════════
+// ══ Data structures ═════════════════════════════════════════════
 
 type Constraint record {
     int lo;
     int hi;
     string name;
-};
-
-type ConstraintDetail record {
-    string name;
-    int lo;
-    int hi;
-    int value;
-    boolean passed;
-    boolean lo_violated;
-    boolean hi_violated;
 };
 
 type FluxResult record {
@@ -58,23 +41,35 @@ type FluxResult record {
     int violated_hi;
     int violated_count;
     boolean passed;
-    ConstraintDetail[] details;
+};
+
+type ConstraintCheckRequest record {
+    int value;
+    Constraint[] constraints;
+};
+
+type BatchRequest record {
+    int[] values;
+    Constraint[] constraints;
 };
 
 type BatchResponse record {
     FluxResult[] results;
-    record {int pass; int caution; int warning; int critical;} stats;
+    int total_pass;
+    int total_caution;
+    int total_warning;
+    int total_critical;
 };
 
-// ══════════════════════════════════════════════════════════════════
-//  Core Functions
-// ══════════════════════════════════════════════════════════════════
+// ══ Saturate: clamp to [-127, 127] ══════════════════════════════
 
-function saturate(int val) returns int {
-    if val < INT8_MIN { return INT8_MIN; }
-    if val > INT8_MAX { return INT8_MAX; }
-    return val;
+function saturate(int v) returns int {
+    if v < INT8_MIN { return INT8_MIN; }
+    if v > INT8_MAX { return INT8_MAX; }
+    return v;
 }
+
+// ══ Severity classification ═════════════════════════════════════
 
 function classifySeverity(int violated, int total) returns Severity {
     if violated == 0 { return PASS; }
@@ -83,52 +78,67 @@ function classifySeverity(int violated, int total) returns Severity {
     return CRITICAL;
 }
 
-function checkConstraints(Constraint[] constraints, int value) returns FluxResult {
-    int val = saturate(value);
-    int errorMask = 0;
-    int violatedLo = 0;
-    int violatedHi = 0;
-    int violatedCount = 0;
-    ConstraintDetail[] details = [];
+// ══ Check function ══════════════════════════════════════════════
 
-    foreach int i in 0 ..< constraints.length() {
+function check(Constraint[] constraints, int value) returns FluxResult {
+    int val = saturate(value);
+    int mask = 0;
+    int vlo = 0;
+    int vhi = 0;
+    int vc = 0;
+    int n = constraints.length();
+
+    foreach int i in 0 ..< n {
         Constraint c = constraints[i];
         boolean loFail = val < c.lo;
         boolean hiFail = val > c.hi;
-        boolean passed = !loFail && !hiFail;
+        boolean failed = loFail || hiFail;
+        int bit = 1 << i;
 
-        if !passed {
-            errorMask = errorMask | (1 << i);
-            violatedCount += 1;
-        }
-        if loFail { violatedLo = violatedLo | (1 << i); }
-        if hiFail { violatedHi = violatedHi | (1 << i); }
-
-        details.push({
-            name: c.name,
-            lo: c.lo,
-            hi: c.hi,
-            value: val,
-            passed: passed,
-            lo_violated: loFail,
-            hi_violated: hiFail
-        });
+        if failed { mask |= bit; }
+        if loFail { vlo |= bit; }
+        if hiFail { vhi |= bit; }
+        if failed { vc += 1; }
     }
 
     return {
-        error_mask: errorMask,
-        severity: classifySeverity(violatedCount, constraints.length()),
-        violated_lo: violatedLo,
-        violated_hi: violatedHi,
-        violated_count: violatedCount,
-        passed: violatedCount == 0,
-        details: details
+        error_mask: mask,
+        severity: classifySeverity(vc, n),
+        violated_lo: vlo,
+        violated_hi: vhi,
+        violated_count: vc,
+        passed: vc == 0
     };
 }
 
-// ══════════════════════════════════════════════════════════════════
-//  Industry Presets
-// ══════════════════════════════════════════════════════════════════
+// ══ Batch check ═════════════════════════════════════════════════
+
+function checkBatch(Constraint[] constraints, int[] values) returns BatchResponse {
+    FluxResult[] results = [];
+    int passCount = 0;
+    int cautionCount = 0;
+    int warningCount = 0;
+    int criticalCount = 0;
+
+    foreach int v in values {
+        FluxResult r = check(constraints, v);
+        results.push(r);
+        if r.severity == PASS { passCount += 1; }
+        if r.severity == CAUTION { cautionCount += 1; }
+        if r.severity == WARNING { warningCount += 1; }
+        if r.severity == CRITICAL { criticalCount += 1; }
+    }
+
+    return {
+        results: results,
+        total_pass: passCount,
+        total_caution: cautionCount,
+        total_warning: warningCount,
+        total_critical: criticalCount
+    };
+}
+
+// ══ Industry presets ═════════════════════════════════════════════
 
 function aviationPreset() returns Constraint[] {
     return [
@@ -157,101 +167,58 @@ function medicalPreset() returns Constraint[] {
     ];
 }
 
-function maritimePreset() returns Constraint[] {
-    return [
-        {lo: -2, hi: 35, name: "sea_temp_C"},
-        {lo: 50, hi: 100, name: "hull_integrity_pct"},
-        {lo: 0, hi: 50, name: "wave_height_m"},
-        {lo: 0, hi: 80, name: "wind_speed_kn"}
-    ];
-}
-
-// ══════════════════════════════════════════════════════════════════
-//  REST Service — The Checker IS the Service
-// ══════════════════════════════════════════════════════════════════
+// ══ Service: constraint check endpoint ═════════════════════════
+// This is Ballerina's superpower — the constraint check IS a network service.
 
 service /flux on new http:Listener(9090) {
 
-    // Single value check against custom constraints
-    resource post function check(Constraint[] constraints, int value) returns FluxResult {
-        return checkConstraints(constraints, value);
+    // Single value check
+    resource function post check(ConstraintCheckRequest req) returns FluxResult {
+        return check(req.constraints, req.value);
     }
 
-    // Batch check — stream multiple values through the constraint layer
-    resource post function batch(Constraint[] constraints, int[] values) returns BatchResponse {
-        int passCount = 0;
-        int cautionCount = 0;
-        int warningCount = 0;
-        int criticalCount = 0;
-        FluxResult[] results = [];
-
-        foreach int v in values {
-            FluxResult r = checkConstraints(constraints, v);
-            results.push(r);
-
-            match r.severity {
-                PASS => { passCount += 1; }
-                CAUTION => { cautionCount += 1; }
-                WARNING => { warningCount += 1; }
-                CRITICAL => { criticalCount += 1; }
-            }
-        }
-
-        return {
-            results: results,
-            stats: {
-                pass: passCount,
-                caution: cautionCount,
-                warning: warningCount,
-                critical: criticalCount
-            }
-        };
-    }
-
-    // Preset endpoints — ready-made constraint sets by industry
-    resource get function presets/[string preset]() returns Constraint[]|error {
-        match preset {
-            "aviation" => { return aviationPreset(); }
-            "nuclear" => { return nuclearPreset(); }
-            "medical" => { return medicalPreset(); }
-            "maritime" => { return maritimePreset(); }
-            _ => { return error("Unknown preset: " + preset); }
-        }
+    // Batch check
+    resource function post batch(BatchRequest req) returns BatchResponse {
+        return checkBatch(req.constraints, req.values);
     }
 
     // Check against a preset
-    resource get function presetCheck/[string preset]/[int value]() returns FluxResult|error {
-        Constraint[] constraints = [];
-        match preset {
-            "aviation" => { constraints = aviationPreset(); }
-            "nuclear" => { constraints = nuclearPreset(); }
-            "medical" => { constraints = medicalPreset(); }
-            "maritime" => { constraints = maritimePreset(); }
-            _ => { return error("Unknown preset: " + preset); }
-        }
-        return checkConstraints(constraints, value);
+    resource function get preset/[string preset]/check/[int value]() returns FluxResult|error {
+        Constraint[] constraints;
+        if preset == "aviation" { constraints = aviationPreset(); }
+        else if preset == "nuclear" { constraints = nuclearPreset(); }
+        else if preset == "medical" { constraints = medicalPreset(); }
+        else { return error("Unknown preset: " + preset); }
+        return check(constraints, value);
     }
 }
 
-// ══════════════════════════════════════════════════════════════════
-//  Main — Standalone Test
-// ══════════════════════════════════════════════════════════════════
-
-public function main() {
-    io:println("═══ FLUX Constraint Engine — Ballerina (Network-Native) ═══");
-    io:println("");
-
-    Constraint[] aviation = aviationPreset();
-    io:println("  Aviation preset loaded: ", aviation.length(), " constraints");
-
-    foreach int val in [-60, 0, 25, 70, 90, 127] {
-        FluxResult r = checkConstraints(aviation, val);
-        string status = r.passed ? "✓ PASS" : string `✗ sev=${r.severity}`;
-        io:println(string `  val=${val}: ${status} mask=0x${r.error_mask}`);
-    }
-
-    io:println("");
-    io:println("  Network service: POST /flux/check");
-    io:println("  Preset check:    GET  /flux/presetCheck/aviation/60");
-    io:println("  Batch mode:      POST /flux/batch");
-}
+// ══ Usage ════════════════════════════════════════════════════════
+//
+// Start service: bal run flux_constraint.bal
+//
+// Check single value:
+//   curl -X POST http://localhost:9090/flux/check \
+//     -d '{"value": 60, "constraints": [{"lo": -55, "hi": 70, "name": "cabin"}]}'
+//
+// Check preset:
+//   curl http://localhost:9090/flux/preset/aviation/check/60
+//
+// Batch check:
+//   curl -X POST http://localhost:9090/flux/batch \
+//     -d '{"values": [-60, 0, 25, 70], "constraints": [...]}'
+//
+// ══ Why Ballerina Matters ═══════════════════════════════════════
+//
+// Ballerina treats network interaction as a FIRST-CLASS concern.
+// The constraint check isn't a library you import — it's a SERVICE
+// you deploy. This means:
+//
+//   1. Constraints are checked at the network boundary
+//   2. Invalid data never enters your system
+//   3. The service mesh enforces constraints across all consumers
+//   4. No consumer can bypass the constraint check
+//
+// For safety-critical systems, this is the deployment model:
+// constraint enforcement as an intermediary service that sits
+// between sensors and processing. The network IS the guard.

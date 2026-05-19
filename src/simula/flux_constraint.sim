@@ -1,0 +1,248 @@
+! FLUX Constraint Engine — Simula (1967, Original OOP + Simulation)
+! Pure INT8 saturated constraint checking. Zero dependencies.
+!
+! The insight: Simula invented OOP for SIMULATION.
+! Constraints are PROCESS INTERACTIONS — sensors are processes,
+! constraint checking is a SIMULATION of the monitoring system.
+! The original class/object paradigm was DESIGNED for this.
+!
+! "Simula invented classes to simulate physical systems.
+!  Constraint checking IS simulating a monitoring system.
+!  The language was literally designed for this problem."
+
+! ══ Constants ═════════════════════════════════════════════════════
+
+INTEGER PROCEDURE saturate(val);
+INTEGER val;
+BEGIN
+  IF val < -127 THEN saturate := -127
+  ELSE IF val > 127 THEN saturate := 127
+  ELSE saturate := val;
+END;
+
+! ══ Severity ══════════════════════════════════════════════════════
+! 0=PASS, 1=CAUTION, 2=WARNING, 3=CRITICAL
+
+INTEGER PROCEDURE classify_severity(violated, total);
+INTEGER violated, total;
+BEGIN
+  IF violated = 0 THEN classify_severity := 0
+  ELSE IF violated <= total DIV 4 THEN classify_severity := 1
+  ELSE IF violated <= total DIV 2 THEN classify_severity := 2
+  ELSE classify_severity := 3;
+END;
+
+! ══ Constraint Class ══════════════════════════════════════════════
+! The first class ever (1967). Still works.
+
+CLASS ConstraintDef(lo, hi, name);
+INTEGER lo, hi;
+TEXT name;
+BEGIN
+  ! Saturate bounds on construction
+  lo := saturate(lo);
+  hi := saturate(hi);
+
+  ! Check a value against this constraint
+  ! Returns: 0=pass, 1=lo_violated, 2=hi_violated
+  INTEGER PROCEDURE check(value);
+  INTEGER value;
+  BEGIN
+    INTEGER v;
+    v := saturate(value);
+    IF v < lo THEN check := 1
+    ELSE IF v > hi THEN check := 2
+    ELSE check := 0;
+  END;
+END;
+
+! ══ FluxResult Class ══════════════════════════════════════════════
+
+CLASS FluxResult;
+BEGIN
+  INTEGER error_mask;
+  INTEGER severity;      ! 0-3
+  INTEGER violated_lo;   ! bitmask
+  INTEGER violated_hi;   ! bitmask
+  INTEGER violated_count;
+  BOOLEAN passed;
+
+  ! Initialize to passing state
+  error_mask := 0;
+  severity := 0;
+  violated_lo := 0;
+  violated_hi := 0;
+  violated_count := 0;
+  passed := TRUE;
+END;
+
+! ══ FluxChecker Class ═════════════════════════════════════════════
+! Manages up to 8 constraints and checks values
+
+CLASS FluxChecker;
+BEGIN
+  REF(ConstraintDef) ARRAY constraints(1:8);
+  INTEGER num_constraints;
+
+  ! Add a constraint
+  PROCEDURE add_constraint(lo, hi, name);
+  INTEGER lo, hi;
+  TEXT name;
+  BEGIN
+    num_constraints := num_constraints + 1;
+    IF num_constraints > 8 THEN
+      ERROR("Maximum 8 constraints exceeded");
+    constraints(num_constraints) :- NEW ConstraintDef(lo, hi, name);
+  END;
+
+  ! Check a single value against all constraints
+  REF(FluxResult) PROCEDURE check(value);
+  INTEGER value;
+  BEGIN
+    REF(FluxResult) result;
+    INTEGER v, i, check_res;
+
+    result :- NEW FluxResult;
+    v := saturate(value);
+
+    FOR i := 1 STEP 1 UNTIL num_constraints DO BEGIN
+      check_res := constraints(i).check(v);
+
+      IF check_res > 0 THEN BEGIN
+        ! Bit position is i-1 (0-indexed)
+        result.error_mask := result.error_mask + 2^(i-1);
+        result.violated_count := result.violated_count + 1;
+
+        IF check_res = 1 THEN  ! lo violated
+          result.violated_lo := result.violated_lo + 2^(i-1);
+        IF check_res = 2 THEN  ! hi violated
+          result.violated_hi := result.violated_hi + 2^(i-1);
+      END;
+    END;
+
+    result.severity :=
+      classify_severity(result.violated_count, num_constraints);
+    result.passed := (result.violated_count = 0);
+    check :- result;
+  END;
+
+  ! Initialize
+  num_constraints := 0;
+END;
+
+! ══ Sensor Process (Simulation) ══════════════════════════════════
+! A Simula PROCESS — the original "actor"
+
+PROCESS CLASS Sensor(checker, sensor_name, interval);
+REF(FluxChecker) checker;
+TEXT sensor_name;
+INTEGER interval;
+BEGIN
+  INTEGER reading;
+  REF(FluxResult) result;
+
+  WHILE TRUE DO BEGIN
+    ! Read sensor (in simulation, this would come from environment)
+    reading := 25;  ! placeholder
+
+    ! Check constraints
+    result :- checker.check(reading);
+
+    ! Log result (Simula-style)
+    IF NOT result.passed THEN
+      OutText("VIOLATION: " & sensor_name);
+      OutInt(reading, 4);
+      OutText(" mask=0x");
+      OutInt(result.error_mask, 2);
+      OutImage;
+
+    ! Wait for next reading
+    HOLD(interval);
+  END;
+END;
+
+! ══ Industry Presets ══════════════════════════════════════════════
+
+PROCEDURE load_aviation(checker);
+REF(FluxChecker) checker;
+BEGIN
+  checker.add_constraint(-55, 70, "cabin_temp_C");
+  checker.add_constraint(75, 101, "cabin_pressure_kPa");
+  checker.add_constraint(0, 100, "fuel_flow_pct");
+  checker.add_constraint(60, 100, "hydraulic_pct");
+END;
+
+PROCEDURE load_medical(checker);
+REF(FluxChecker) checker;
+BEGIN
+  checker.add_constraint(36, 38, "body_temp_C");
+  checker.add_constraint(60, 100, "heart_rate_bpm");
+  checker.add_constraint(95, 100, "spo2_pct");
+  checker.add_constraint(80, 120, "bp_systolic_mmHg");
+END;
+
+PROCEDURE load_nuclear(checker);
+REF(FluxChecker) checker;
+BEGIN
+  checker.add_constraint(0, 110, "neutron_flux_pct");
+  checker.add_constraint(0, 65, "core_temp_C_x10");
+  checker.add_constraint(72, 100, "pressurizer_pct");
+  checker.add_constraint(0, 100, "coolant_flow_pct");
+END;
+
+! ══ Main Program ══════════════════════════════════════════════════
+
+BEGIN
+  REF(FluxChecker) fc;
+  REF(FluxResult) r;
+  INTEGER i;
+  INTEGER ARRAY test_values(1:6);
+
+  OutText("═══ FLUX Constraint Engine — Simula (1967) ═══");
+  OutImage;
+
+  fc :- NEW FluxChecker;
+  load_aviation(fc);
+
+  test_values(1) := -60;
+  test_values(2) := 0;
+  test_values(3) := 25;
+  test_values(4) := 70;
+  test_values(5) := 90;
+  test_values(6) := 127;
+
+  FOR i := 1 STEP 1 UNTIL 6 DO BEGIN
+    r :- fc.check(test_values(i));
+    OutText("  val=");
+    OutInt(test_values(i), 4);
+    OutText(" sev=");
+    OutInt(r.severity, 1);
+    OutText(" mask=0x");
+    OutInt(r.error_mask, 2);
+    OutText(" passed=");
+    IF r.passed THEN OutText("T") ELSE OutText("F");
+    OutImage;
+  END;
+
+  OutText("═══ Simula: the language that invented OOP for this. ═══");
+  OutImage;
+END;
+
+! ══ Usage ══════════════════════════════════════════════════════════
+!
+! Compile and run (CIM — Simula compiler):
+!   cim flux_constraint.sim
+!
+! Or use GNU Simula:
+!   simula flux_constraint.sim
+!
+! Simula invented:
+!   - Classes and objects
+!   - Inheritance
+!   - Coroutines (HOLD/RESUME)
+!   - Simulation (DISCRETE EVENT)
+!   - Garbage collection (reference counting)
+!
+! All in 1967. For simulation of physical systems.
+! Constraint monitoring IS simulation of physical systems.
+! The language was born for this problem domain.

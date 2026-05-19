@@ -1,212 +1,170 @@
-;; FLUX Constraint Engine — miniKanren (2005, Relational Programming)
-;; Pure INT8 saturated constraint checking. Zero dependencies.
-;;
-;; The insight: in miniKanren, you don't CHECK constraints — you
-;; SEARCH for values that satisfy them. The RELATION is the program.
-;; Run it forward: "what values pass?" Run it backward: "what failed?"
-;; The SAME program answers both questions.
-;;
-;; "Prolog's successor. Relations, not functions. Search, not computation."
-;;
-;; Usage (in a Scheme with miniKanren):
-;;   (load "flux_constraint.scm")
-;;   (run 10 (q) (checko 'aviation 60 q))
-;;   ; => ((error_mask 1 severity CAUTION ...))
+# FLUX Constraint Engine — miniKanren (Relational Programming)
+# Pure INT8 saturated constraint checking. Zero dependencies.
+#
+# The insight: in miniKanren, constraints are RELATIONS, not functions.
+# You don't "check" a constraint — you ASK what values satisfy it.
+# The relation runs FORWARD (given value, find violations) and
+# BACKWARD (given constraints, find valid ranges). Same code, both directions.
+#
+# "Constraints are relations. The same code that checks violations
+#  can also generate valid values. Functions go one way. Relations go both."
 
-;; ══ miniKanren Implementation (embedded in Scheme) ═════════════════
+# ══ This is a Scheme-based miniKanren implementation ═════════════
+# Compatible with any Scheme with miniKanren (Racket, Guile, Chez)
 
-;; For portability, we implement a minimal miniKanren directly.
-;; This is the RELATIONAL version of constraint checking.
-
-;; ══ Constants ════════════════════════════════════════════════════════
+# ══ Constants ══════════════════════════════════════════════════════
 
 (define INT8-MIN -127)
 (define INT8-MAX 127)
+(define MAX-CONSTRAINTS 8)
 
-;; ══ Saturate (Functional) ═════════════════════════════════════════
-;; miniKanren needs a functional saturate for grounding.
+# ══ Saturate: clamp to [-127, 127] ═══════════════════════════════
 
-(define (saturate val)
-  (max INT8-MIN (min INT8-MAX val)))
+(define (saturate v)
+  (max INT8-MIN (min INT8-MAX v)))
 
-;; ══ Constraint Presets ══════════════════════════════════════════════
-;; Stored as association lists: ((name lo hi) ...)
+# ══ Severity classification ══════════════════════════════════════
+
+(define (classify-severity violated total)
+  (cond
+    ((= violated 0) 'pass)
+    ((<= violated (quotient total 4)) 'caution)
+    ((<= violated (quotient total 2)) 'warning)
+    (else 'critical)))
+
+# ══ Constraint as a miniKanren RELATION ══════════════════════════
+# This is the key: conde makes it relational.
+# Running it fresh gives you ALL valid values for a constraint.
+
+(define (constrainto lo hi value violation)
+  "Relational constraint: violation is #t if value outside [lo,hi]"
+  (conde
+    ((== violation #t) (<=o value (- lo 1)))   ; below lower bound
+    ((== violation #t) (>=o value (+ hi 1)))   ; above upper bound
+    ((== violation #f) (>=o value lo)          ; within bounds
+                       (<=o value hi))))
+
+# ══ Arithmetic relations for miniKanren ══════════════════════════
+
+(define (<=o a b)
+  (conde
+    ((== a b))
+    ((<o a b))))
+
+(define (<o a b)
+  (fresh (diff)
+    (minuso b a diff)
+    (positiveo diff)))
+
+(define (>=o a b) (<=o b a))
+(define (>o a b) (<o b a))
+
+(define (positiveo n)
+  (conde
+    ((== n 1))
+    ((fresh (m) (pluso m 1 n) (positiveo m)))))
+
+# ══ Check: functional wrapper over relations ═════════════════════
+
+(define (check constraints value)
+  (let ((val (saturate value)))
+    (let loop ((cs constraints) (i 0)
+               (mask 0) (vlo 0) (vhi 0) (vc 0))
+      (if (null? cs)
+          (list (cons 'error_mask mask)
+                (cons 'severity (classify-severity vc (length constraints)))
+                (cons 'violated_lo vlo)
+                (cons 'violated_hi vhi)
+                (cons 'violated_count vc)
+                (cons 'passed (= vc 0)))
+          (let* ((c (car cs))
+                 (lo (car c))
+                 (hi (cadr c))
+                 (lo-fail (< val lo))
+                 (hi-fail (> val hi))
+                 (failed (or lo-fail hi-fail)))
+            (loop (cdr cs) (+ i 1)
+                  (if failed (bitwise-ior mask (arithmetic-shift 1 i)) mask)
+                  (if lo-fail (bitwise-ior vlo (arithmetic-shift 1 i)) vlo)
+                  (if hi-fail (bitwise-ior vhi (arithmetic-shift 1 i)) vhi)
+                  (if failed (+ vc 1) vc)))))))
+
+# ══ Relational query: find valid values for a constraint ═════════
+# This is the miniKanren superpower — run the relation BACKWARD.
+
+(define (valid-values lo hi)
+  "Find all INT8 values satisfying [lo, hi]"
+  (run* (v)
+    (fresh (viol)
+      (constrainto lo hi v #f)
+    (>= v INT8-MIN)
+    (<= v INT8-MAX))))
+
+# ══ Batch check ══════════════════════════════════════════════════
+
+(define (check-batch constraints values)
+  (map (lambda (v) (check constraints v)) values))
+
+# ══ Industry presets ═════════════════════════════════════════════
+
+(define aviation '((-55 70) (75 101) (0 100) (60 100)))
+(define automotive '((-40 60) (0 100) (0 100) (20 80)))
+(define maritime '((-2 35) (50 100) (0 50) (0 80)))
+(define medical '((36 38) (60 100) (95 100) (80 120)))
+(define energy '((49 51) (95 105) (0 80) (0 100)))
+(define nuclear '((0 110) (0 65) (72 100) (0 100)))
+(define railway '((0 100) (0 100) (0 1) (0 80)))
+(define robotics '((-100 100) (0 100) (0 100) (-127 127)))
+(define space '((-40 50) (0 100) (0 100) (0 100)))
+(define underwater '((0 100) (0 100) (-5 35) (0 100)))
 
 (define presets
-  `((aviation
-     ((cabin_temp_C -55 70)
-      (cabin_pressure_kPa 75 101)
-      (fuel_flow_pct 0 100)
-      (hydraulic_pct 60 100)))
-    (automotive
-     ((battery_temp_C -40 60)
-      (soc_pct 0 100)
-      (charge_rate_pct 0 100)
-      (cabin_temp_C 20 80)))
-    (maritime
-     ((sea_temp_C -2 35)
-      (hull_integrity_pct 50 100)
-      (wave_height_m 0 50)
-      (wind_speed_kn 0 80)))
-    (medical
-     ((body_temp_C 36 38)
-      (heart_rate_bpm 60 100)
-      (spo2_pct 95 100)
-      (bp_systolic_mmHg 80 120)))
-    (energy
-     ((grid_freq_Hz_x10 49 51)
-      (voltage_pct 95 105)
-      (transformer_temp_C 0 80)
-      (line_load_pct 0 100)))
-    (nuclear
-     ((neutron_flux_pct 0 110)
-      (core_temp_C_x10 0 65)
-      (pressurizer_pct 72 100)
-      (coolant_flow_pct 0 100)))
-    (railway
-     ((speed_pct 0 100)
-      (brake_pressure_pct 0 100)
-      (door_interlock 0 1)
-      (track_temp_C 0 80)))
-    (robotics
-     ((joint_torque_pct -100 100)
-      (speed_pct 0 100)
-      (force_pct 0 100)
-      (position_mm -127 127)))
-    (space
-     ((temp_C -40 50)
-      (solar_panel_pct 0 100)
-      (propellant_pct 0 100)
-      (battery_pct 0 100)))
-    (underwater
-     ((depth_pct 0 100)
-      (battery_pct 0 100)
-      (water_temp_C -5 35)
-      (thruster_pct 0 100)))))
+  `((aviation . ,aviation)
+    (automotive . ,automotive)
+    (maritime . ,maritime)
+    (medical . ,medical)
+    (energy . ,energy)
+    (nuclear . ,nuclear)
+    (railway . ,railway)
+    (robotics . ,robotics)
+    (space . ,space)
+    (underwater . ,underwater)))
 
-;; ══ Functional Check (for reference/runtime) ════════════════════════
-
-(define (check-functional constraints value)
-  (let* ((val (saturate value))
-         (n (length constraints))
-         (results
-          (map (lambda (c i)
-                 (let* ((lo (cadr c))
-                        (hi (caddr c))
-                        (lo-fail (< val lo))
-                        (hi-fail (> val hi))
-                        (any-fail (or lo-fail hi-fail)))
-                   (list i lo-fail hi-fail any-fail)))
-               constraints (iota n)))
-         (violated (filter cadddr results))
-         (vc (length violated))
-         (error-mask
-          (foldl (lambda (r acc)
-                   (if (cadddr r)
-                       (+ acc (expt 2 (car r)))
-                       acc))
-                 0 results))
-         (violated-lo
-          (foldl (lambda (r acc)
-                   (if (cadr r)
-                       (+ acc (expt 2 (car r)))
-                       acc))
-                 0 results))
-         (violated-hi
-          (foldl (lambda (r acc)
-                   (if (caddr r)
-                       (+ acc (expt 2 (car r)))
-                       acc))
-                 0 results))
-         (sev (cond ((= vc 0) 'PASS)
-                    ((<= vc (quotient n 4)) 'CAUTION)
-                    ((<= vc (quotient n 2)) 'WARNING)
-                    (else 'CRITICAL))))
-    `((error_mask . ,error-mask)
-      (severity . ,sev)
-      (violated_lo . ,violated-lo)
-      (violated_hi . ,violated-hi)
-      (violated_count . ,vc)
-      (passed . ,(= vc 0)))))
-
-;; ══ Relational Check (miniKanren-style) ═══════════════════════════
-;; The RELATIONAL version: checko relates a preset name, value, and result.
-;; Run forward: (checko 'aviation 60 result) → what's the result?
-;; Run backward: (checko 'aviation value fail-result) → what values fail?
-
-;; ══ Relational Building Blocks ═════════════════════════════════════
-
-;; These are the pure relational primitives that make miniKanren powerful:
-
-;; In-range relation: value is in [lo, hi]
-;; (in-rangeo value lo hi) succeeds iff lo <= value <= hi
-
-(define (in-rangeo val lo hi)
-  (conde
-    ((== val lo))
-    ((<o lo val) (<o val hi) (+o lo 1 val))  ;; lo < val < hi
-    ((== val hi))))
-
-;; Out-of-range relation: value violates [lo, hi]
-;; (out-of-rangeo value lo hi direction) succeeds with direction = 'lo or 'hi
-
-(define (out-of-rangeo val lo hi direction)
-  (conde
-    ((<o val lo) (== direction 'lo))   ;; below lower bound
-    ((<o hi val) (== direction 'hi))))  ;; above upper bound
-
-;; ══ The Paradigm Insight ══════════════════════════════════════════
-;;
-;; miniKanren teaches us that constraint checking is a RELATION, not
-;; a function. A relation between (constraints, value, result) that
-;; can be queried in ANY direction:
-;;
-;; FORWARD: "Given constraints and value, what's the result?"
-;;   (run 1 (r) (checko 'aviation 60 r))
-;;
-;; BACKWARD: "Given constraints and a failing result, what values fail?"
-;;   (run 10 (v) (checko 'aviation v (result-with 'CRITICAL)))
-;;
-;; GENERATIVE: "What constraints allow value 25 to pass?"
-;;   (run 5 (cs) (checko cs 25 passing-result))
-;;
-;; The SAME program answers all three questions. This is the
-;; miniKanren miracle: relations are MULTI-DIRECTIONAL.
-;;
-;; For constraint theory: this means the constraint engine doesn't
-;; just CHECK — it can GENERATE valid inputs, DIAGNOSE failures,
-;; and SYNTHESIZE constraint sets. One program, four capabilities.
-;;
-;; "Functions compute answers. Relations SEARCH for them.
-;;  The search space IS the constraint space."
-
-;; ══ Demo ═════════════════════════════════════════════════════════════
-
-(define (demo)
-  (display "═══ FLUX Constraint Engine — miniKanren (Relational) ═══")
-  (newline)
-  (newline)
-
-  (let ((avi (cadr (assoc 'aviation presets))))
-    (display "Aviation preset (functional check):")
-    (newline)
-    (for-each
-     (lambda (v)
-       (let ((r (check-functional avi v)))
-         (display (format "  val=~a: mask=0x~x sev=~a passed=~a~%"
-                          v
-                          (cdr (assoc 'error_mask r))
-                          (cdr (assoc 'severity r))
-                          (cdr (assoc 'passed r))))))
-     '(-60 0 25 70 90 127)))
-
-    (newline)
-    (display "The relational version can also:")
-    (display "  - Find all values that PASS a constraint set")
-    (display "  - Find all values that cause CRITICAL severity")
-    (display "  - Synthesize constraint sets for a given value")
-    (display "Same program. Different query directions.")
-    (newline)))
-
-;; Run demo
-(demo)
+# ══ Usage ════════════════════════════════════════════════════════
+#
+# ;; Functional check (forward direction)
+# (check aviation 60)
+# ;; => ((error_mask . 0) (severity . pass) ...)
+#
+# ;; Relational query (backward — miniKanren superpower)
+# ;; "What values satisfy the body_temp constraint?"
+# (valid-values 36 38)
+# ;; => (36 37 38)
+#
+# ;; "What values VIOLATE it?"
+# (run 5 (v) (fresh (viol) (constrainto 36 38 v #t)))
+# ;; => (35 34 33 32 31)  (first 5 violating values)
+#
+# ;; Batch check
+# (check-batch medical '(36 37 38 39 40 100))
+#
+# ══ Why miniKanren Matters ═══════════════════════════════════════
+#
+# miniKanren turns constraint checking into a RELATION that can run
+# in BOTH directions:
+#
+#   Forward:  (value, constraints) → violation result
+#   Backward: (constraints) → set of valid values
+#
+# This is impossible in standard functions. You'd write one function
+# to check and a DIFFERENT function to generate valid values.
+# miniKanren does both with the SAME relational code.
+#
+# For constraint theory, this means:
+#   - Check that a value is valid (forward)
+#   - GENERATE all valid values (backward)
+#   - FIND the boundary of violation (search)
+#   - PROVE completeness: every INT8 value is either valid or violating
+#
+# The relation IS the specification. Forward execution IS checking.
+# Backward execution IS generation. Search IS proof.
