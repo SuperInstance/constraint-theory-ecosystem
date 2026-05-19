@@ -1,6 +1,6 @@
 # PORTS.md — FLUX Constraint Engine Language Catalog
 
-**54 languages. Same API. Same results. Zero mismatches.**
+**64 languages. 8 paradigms. 57 years of language design. Same API. Same results. Zero mismatches.**
 
 Every implementation shares the same core: INT8 saturated constraint checking, 8 constraints max per sensor, severity escalation (PASS → CAUTION → WARNING → CRITICAL), error masks, and 10 industry presets. Zero dependencies.
 
@@ -87,24 +87,62 @@ The [GUARD DSL](src/guard/flux_constraint.guard) is the source of truth — all 
 | 48 | **Embedded C** | `src/embedded/test_flux_embedded.c` | Bare-metal ARM, no OS | 1972 | ⚡ blazing |
 | 49 | **Forth** | *(cross-listed above)* | Stack-based, MCU-native | 1970 | ⚡ blazing |
 
+## Array / Dataflow (paradigm-breaking)
+
+| # | Language | File | Description | Era | Speed |
+|---|----------|------|-------------|-----|-------|
+| 50 | **APL** | `src/apl/flux_constraint.apl` | Check IS a rank-1 array reduction. No loops exist. | 1966 | ⚡ blazing |
+| 51 | **BQN** | `src/bqn/flux_constraint.bqn` | Whole check = one glyph expression. APL evolved. | 2022 | ⚡ blazing |
+| 52 | **AWK** | `src/awk/flux_constraint.awk` | Constraints as stream processing. One line in, one line out. | 1977 | 🔥 fast |
+
+## Logic / Object (paradigm-breaking)
+
+| # | Language | File | Description | Era | Speed |
+|---|----------|------|-------------|-----|-------|
+| 53 | **Prolog** | `src/prolog/flux_constraint.pl` | The query IS the check. The proof IS the result. | 1972 | 🐢 moderate |
+| 54 | **Smalltalk** | `src/smalltalk/flux_constraint.st` | Everything is message passing, even violation detection. | 1972 | 🐢 moderate |
+
+## Parallel (paradigm-breaking)
+
+| # | Language | File | Description | Era | Speed |
+|---|----------|------|-------------|-----|-------|
+| 55 | **Chapel** | `src/chapel/flux_constraint.chpl` | Batch checking is embarrassingly parallel. Cray knew. | 2009 | ⚡ blazing |
+
+## Formal / Proof / Dependent Types (paradigm-breaking)
+
+| # | Language | File | Description | Era | Speed |
+|---|----------|------|-------------|-----|-------|
+| 56 | **Idris 2** | `src/idris/flux_constraint.idr` | Type system enforces max 8 constraints at compile time. | 2020 | 🔥 fast |
+| 57 | **Lean 4** | `src/lean/flux_constraint.lean` | Proof-carrying checks. Ships with machine-checked theorems. | 2023 | 🔥 fast |
+| 58 | **Coq** | `proofs/coq/flux_saturation_coq.v` | Machine-checked proof certificates | 1989 | N/A (proof) |
+
+## Pure Functional (paradigm-breaking)
+
+| # | Language | File | Description | Era | Speed |
+|---|----------|------|-------------|-----|-------|
+| 59 | **Roc** | `src/roc/flux_constraint.roc` | Zero runtime exceptions by design. Platform-separated. | 2022 | 🔥 fast |
+
+## Lisp / Embeddable (paradigm-breaking)
+
+| # | Language | File | Description | Era | Speed |
+|---|----------|------|-------------|-----|-------|
+| 60 | **Janet** | `src/janet/flux_constraint.janet` | PEG parsing + C FFI = constraints as embedded DSL. | 2019 | 🔥 fast |
+
 ## Domain-Specific
 
 | # | Language | File | Description | Era | Speed |
 |---|----------|------|-------------|-----|-------|
-| 50 | **COBOL** | `src/cobol/flux_constraint.cob` | Mainframe heritage, banking/insurance | 1959 | 🔥 fast |
-| 51 | **Fortran** | `src/fortran/flux_constraint.f90` | Scientific computing, array-native | 1957 | ⚡ blazing |
-| 52 | **Crystal** | `src/crystal/flux_constraint.cr` | Ruby syntax, compiled performance | 2014 | 🔥 fast |
-| 53 | **Dart** | `src/dart/flux_constraint.dart` | Flutter-friendly, null-safe | 2011 | 🔥 fast |
-| 54 | **Mojo** | `src/mojo/flux_constraint.mojo` | Python superset, GPU-speed compute | 2023 | ⚡ blazing |
+| 61 | **COBOL** | `src/cobol/flux_constraint.cob` | Mainframe heritage, banking/insurance | 1959 | 🔥 fast |
+| 62 | **Fortran** | `src/fortran/flux_constraint.f90` | Scientific computing, array-native | 1957 | ⚡ blazing |
+| 63 | **Crystal** | `src/crystal/flux_constraint.cr` | Ruby syntax, compiled performance | 2014 | 🔥 fast |
+| 64 | **Dart** | `src/dart/flux_constraint.dart` | Flutter-friendly, null-safe | 2011 | 🔥 fast |
+| 65 | **Mojo** | `src/mojo/flux_constraint.mojo` | Python superset, GPU-speed compute | 2023 | ⚡ blazing |
 
-## Formal / Proof
+## GUARD DSL — Source of Truth
 
 | # | Language | File | Description | Era | Speed |
 |---|----------|------|-------------|-----|-------|
-| 55 | **Coq** | `proofs/coq/flux_saturation_coq.v` | Machine-checked proof certificates | 1989 | N/A (proof) |
-| 56 | **GUARD DSL** | `src/guard/flux_constraint.guard` | **Source of truth** — all ports translate from this | 2024 | compiled |
-
-> **Note:** Coq and GUARD DSL bring the catalog to 56 files across 54 distinct language directories. Coq is a proof assistant (not a runtime port). GUARD DSL is the canonical specification language that all 54 runtime ports translate from.
+| 66 | **GUARD DSL** | `src/guard/flux_constraint.guard` | **Source of truth** — all ports translate from this | 2024 | compiled |
 
 ---
 
@@ -118,10 +156,15 @@ The [GUARD DSL](src/guard/flux_constraint.guard) is the source of truth — all 
 | Scripting / Interpreted | 12 |
 | Web / WASM | 3 |
 | Embedded / Hardware | 5 |
+| Array / Dataflow | 3 |
+| Logic / Object | 2 |
+| Parallel | 1 |
+| Formal / Proof / Dependent Types | 3 |
+| Pure Functional | 1 |
+| Lisp / Embeddable | 1 |
 | Domain-Specific | 5 |
-| Formal / Proof | 2 |
-| **Unique language directories** | **54** |
-| **Total files (incl. cross-listings + proofs)** | **56** |
+| GUARD DSL (source of truth) | 1 |
+| **Unique language directories** | **64** |
 
 ## Speed Classes
 
