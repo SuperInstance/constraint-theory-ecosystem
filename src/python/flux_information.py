@@ -885,6 +885,11 @@ class RateDistortionOptimizer:
         if violation_rate <= 0:
             return float('inf')
         fn_budget = fn_budget_per_million / 1_000_000
+        if fn_budget <= 0:
+            # Zero false negatives → must check violation region
+            # With predictive checking, only check when value might violate
+            # Effective check rate ≈ violation_rate (check only the boundary region)
+            return 1.0 / violation_rate if violation_rate > 0 else float('inf')
         min_check_rate = max(violation_rate, 1 - fn_budget / violation_rate)
         return 1.0 / min_check_rate if min_check_rate > 0 else float('inf')
 
