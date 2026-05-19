@@ -222,7 +222,7 @@ int main(int argc, char* argv[]) {
     case 3: // SIMD AVX-512
         for (int i = 0; i < ITERS; i++) {
             // 64-wide batch with same 8 values repeated
-            alignas(64) int8_t v64[64];
+            __attribute__((aligned(64))) int8_t v64[64];
             for (int j = 0; j < 64; j++) v64[j] = g_data.values[j % 8];
             for (int c = 0; c < MAX_C; c++) {
                 __m512i v = _mm512_load_si512(v64);
@@ -266,7 +266,7 @@ def compile_and_run_c(iters, quick=False):
 
         for name, mode, flags in configs:
             bin_path = os.path.join(tmpdir, f"bench_{mode}")
-            compile_cmd = f"gcc {flags} -o {bin_path} {src_path} -lm"
+            compile_cmd = f"gcc {' '.join(flags)} -o {bin_path} {src_path} -lm"
             stdout, stderr, rc = run_cmd(compile_cmd)
             if rc != 0:
                 results.append({"name": name, "error": f"Compile failed: {stderr}"})
@@ -354,8 +354,8 @@ fn bench_naive() -> u64 {
     }
     let elapsed = start.elapsed();
     let total = ITERS * 8 * MAX_C as u64;
-    eprintln!("rust_naive total={} elapsed={:.6?} rate={:.0}/s",
-              total, elapsed, total as f64 / elapsed.as_secs_f64());
+    eprintln!("rust_naive total={} elapsed={:.9} rate={:.0}/s",
+              total, secs, total as f64 / secs);
     sink
 }
 
@@ -370,14 +370,14 @@ unsafe fn bench_simd_avx2() -> u64 {
             let hi_v = _mm_set1_epi8(HI[c]);
             let lt = _mm_cmplt_epi8(v, lo_v);
             let gt = _mm_cmpgt_epi8(v, hi_v);
-            let in_r = _mm_andnot_si128(_mm_or_si128(lt, gt), _mm_set1_epi8(0xFF));
+            let in_r = _mm_andnot_si128(_mm_or_si128(lt, gt), _mm_set1_epi8(-1i8));
             sink += _mm_movemask_epi8(in_r) as u64;
         }
     }
     let elapsed = start.elapsed();
     let total = ITERS * 8 * MAX_C as u64;
-    eprintln!("rust_simd total={} elapsed={:.6?} rate={:.0}/s",
-              total, elapsed, total as f64 / elapsed.as_secs_f64());
+    eprintln!("rust_simd total={} elapsed={:.9} rate={:.0}/s",
+              total, secs, total as f64 / secs);
     sink
 }
 

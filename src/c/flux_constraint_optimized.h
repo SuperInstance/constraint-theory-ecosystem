@@ -67,7 +67,7 @@ static const uint8_t FLUX_SEVERITY_TABLE[9] = {
 // Fits one L1 cache line. No false sharing possible.
 // ═══════════════════════════════════════════════════════════
 
-typedef struct alignas(FLUX_OPT_CACHE_LINE) {
+typedef struct {
     int8_t   lo;                          // offset 0
     int8_t   hi;                          // offset 1
     uint8_t  constraint_id;               // offset 2
@@ -78,15 +78,15 @@ typedef struct alignas(FLUX_OPT_CACHE_LINE) {
     uint32_t fail_count;                  // offset 16-19
     char     name[32];                    // offset 20-51
     uint8_t  _reserved[12];              // offset 52-63
-} FluxOptConstraint;
+} __attribute__((aligned(FLUX_OPT_CACHE_LINE))) FluxOptConstraint;
 
-static_assert(sizeof(FluxOptConstraint) == 64, "FluxOptConstraint must be exactly 64 bytes");
+_Static_assert(sizeof(FluxOptConstraint) == 64, "FluxOptConstraint must be exactly 64 bytes");
 
 // ═══════════════════════════════════════════════════════════
 // Result structure (also cache-line aligned)
 // ═══════════════════════════════════════════════════════════
 
-typedef struct alignas(FLUX_OPT_CACHE_LINE) {
+typedef struct {
     uint8_t  pass_mask;                   // bit i = 1 if constraint i passed
     uint8_t  fail_mask;                   // bit i = 1 if constraint i failed
     uint8_t  severity;                    // from FLUX_SEVERITY_TABLE
@@ -94,7 +94,7 @@ typedef struct alignas(FLUX_OPT_CACHE_LINE) {
     uint32_t checks_performed;
     uint32_t checks_failed;
     uint64_t cycles_elapsed;              // via __rdtsc
-} FluxOptResult;
+} __attribute__((aligned(FLUX_OPT_CACHE_LINE))) FluxOptResult;
 
 // ═══════════════════════════════════════════════════════════
 // Ring buffer provenance (power-of-2 mask indexing)
@@ -503,7 +503,7 @@ static void bench_severity(void) {
 }
 
 void flux_run_benchmarks(void) {
-    alignas(64) FluxOptConstraint constraints[FLUX_OPT_MAX_CONSTRAINTS];
+    __attribute__((aligned(64))) FluxOptConstraint constraints[FLUX_OPT_MAX_CONSTRAINTS];
     flux_aviation_preset(constraints);
     
     printf("\n═══ FLUX Constraint Engine Benchmarks ═══\n");
