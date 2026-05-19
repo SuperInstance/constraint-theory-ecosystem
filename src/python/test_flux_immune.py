@@ -178,10 +178,10 @@ class TestImmuneOptimizer:
     def test_mutation_rate_adapts(self):
         opt = ImmuneOptimizer(dims=2, mu_max=0.5)
         # Quadratic + floor: μ(a) = μ_max * (1-a)² + μ_floor
-        # μ_floor = 0.05
-        assert opt.mutation_rate(0.0) == pytest.approx(0.55)  # far → max + floor
-        assert opt.mutation_rate(1.0) == pytest.approx(0.05)  # at optimal → floor only
-        assert opt.mutation_rate(0.5) == pytest.approx(0.175) # halfway → (0.5*0.25)+0.05
+        # μ_floor = 0.5 * 0.4 = 0.2
+        assert opt.mutation_rate(0.0) == pytest.approx(0.7)   # far → max + floor
+        assert opt.mutation_rate(1.0) == pytest.approx(0.2)   # at optimal → floor only
+        assert opt.mutation_rate(0.5) == pytest.approx(0.325) # halfway
         # Monotonically decreasing
         assert opt.mutation_rate(0.0) > opt.mutation_rate(0.5) > opt.mutation_rate(1.0)
 

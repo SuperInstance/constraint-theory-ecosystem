@@ -312,20 +312,38 @@ class ImmuneOptimizer:
         Low affinity → high mutation (exploration)
         Quadratic schedule: gentle near optimum, aggressive when far.
         """
-        mu_floor = self.mu_max * 0.1  # never drop below 10% of max
+        mu_floor = self.mu_max * 0.4  # never drop below 40% of max
         return self.mu_max * (1.0 - affinity) ** 2 + mu_floor
 
     def _mutate_bounds(self, bounds: Bounds, mu: float) -> Tuple[Bounds, int]:
-        """Mutate bounds with rate mu. Returns (new_bounds, n_mutations)."""
+        """Mutate bounds with rate mu. Returns (new_bounds, n_mutations).
+
+        Three mutation types, equally likely:
+        - SHIFT: translate both bounds by same amount (repositioning)
+        - TIGHTEN: shrink bounds (reduce false positives)
+        - WIDEN: expand bounds (reduce false negatives)
+        """
         new_bounds = []
         n_mutations = 0
         for lo, hi in bounds:
             if np.random.random() < mu:
                 width = hi - lo
-                delta = np.random.normal(0, mu * width * 0.5)
-                # Mutate both ends independently
-                new_lo = lo + delta * np.random.uniform(-1, 1)
-                new_hi = hi + delta * np.random.uniform(-1, 1)
+                mut_type = np.random.random()
+                if mut_type < 0.33:
+                    # SHIFT: translate the interval
+                    delta = np.random.normal(0, mu * width * 0.5)
+                    new_lo = lo + delta
+                    new_hi = hi + delta
+                elif mut_type < 0.67:
+                    # TIGHTEN: shrink both ends inward
+                    shrink = abs(np.random.normal(0, mu * width * 0.3))
+                    new_lo = lo + shrink
+                    new_hi = hi - shrink
+                else:
+                    # WIDEN: expand both ends outward
+                    expand = abs(np.random.normal(0, mu * width * 0.3))
+                    new_lo = lo - expand
+                    new_hi = hi + expand
                 if new_lo > new_hi:
                     new_lo, new_hi = new_hi, new_lo
                 n_mutations += 1
@@ -515,14 +533,21 @@ class StandardEvolution:
         self.generation = 0
 
     def _mutate_fixed(self, bounds: Bounds) -> Bounds:
-        """Fixed-rate mutation."""
+        """Fixed-rate mutation with shift/tighten/widen."""
         new_bounds = []
         for lo, hi in bounds:
             if np.random.random() < self.fixed_mu:
                 width = hi - lo
-                delta = np.random.normal(0, self.fixed_mu * width * 0.5)
-                new_lo = lo + delta * np.random.uniform(-1, 1)
-                new_hi = hi + delta * np.random.uniform(-1, 1)
+                mut_type = np.random.random()
+                if mut_type < 0.33:
+                    delta = np.random.normal(0, self.fixed_mu * width * 0.5)
+                    new_lo, new_hi = lo + delta, hi + delta
+                elif mut_type < 0.67:
+                    shrink = abs(np.random.normal(0, self.fixed_mu * width * 0.3))
+                    new_lo, new_hi = lo + shrink, hi - shrink
+                else:
+                    expand = abs(np.random.normal(0, self.fixed_mu * width * 0.3))
+                    new_lo, new_hi = lo - expand, hi + expand
                 if new_lo > new_hi:
                     new_lo, new_hi = new_hi, new_lo
             else:
@@ -676,12 +701,14 @@ def run_experiment(
         print(f"Advantage:              {results['advantage']:+.4f}")
         print(f"Immune converged at gen: {results['immune_convergence_gen']}")
         print(f"Standard converged at gen: {results['std_convergence_gen']}")
-        if results['advantage'] > 0:
-            print("→ Immune optimizer WINS")
-        elif results['advantage'] < 0:
-            print("→ Standard evolution wins")
+        print(f"\nBoth strategies are complementary — the fleet uses whichever")
+        print(f"produces better tiles for a given problem instance.")
+        if immune_best_aff > std_best_aff:
+            print(f"→ Immune optimizer wins this instance")
+        elif std_best_aff > immune_best_aff:
+            print(f"→ Standard evolution wins this instance")
         else:
-            print("→ Tie")
+            print(f"→ Tie")
 
     return results
 
