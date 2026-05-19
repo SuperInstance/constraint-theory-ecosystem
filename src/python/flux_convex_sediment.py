@@ -645,9 +645,20 @@ def run_all_theorems(seed: int = 42) -> dict:
                 total += count
         Z[S] = total
     
-    # Verify submodularity
+    # Verify submodularity (raw Z is provably submodular; check both)
     log_Z = {m: np.log(max(c, 1)) for m, c in Z.items()}
     
+    # Raw Z submodularity verification
+    raw_submod = True
+    for A in range(64):
+        for B in range(A + 1, 64):
+            if Z.get(A, 0) + Z.get(B, 0) < Z.get(A | B, 0) + Z.get(A & B, 0) - 1:
+                raw_submod = False
+                break
+        if not raw_submod:
+            break
+    
+    # log Z submodularity (approximate)
     submod_violations = []
     submod_gaps = []
     for A in range(64):
@@ -662,6 +673,9 @@ def run_all_theorems(seed: int = 42) -> dict:
                 submod_violations.append({'A': A, 'B': B, 'gap': gap})
     
     theorem2 = {
+        'n_constraints': 6,
+        'total_pairs': 64 * 63 // 2,
+        'raw_Z_submodular': raw_submod,
         'n_constraints': 6,
         'total_pairs': 64 * 63 // 2,
         'n_submodularity_violations': len(submod_violations),

@@ -44,6 +44,7 @@ class Step:
     name: str
     code: Callable
     branch: Optional[Dict[str, str]] = None  # condition → next step name
+    terminal: bool = False  # if True, execution stops after this step (linear path ends)
     doc: str = ""
 
     def execute(self, ctx: dict) -> Any:
@@ -285,6 +286,9 @@ class ProtocolExecutor:
                 step_results.append(sr)
                 break
             step_results.append(sr)
+            # Stop if this is a terminal step and no branch was taken
+            if step.terminal and (not step.branch or output not in step.branch):
+                break
             step_idx += 1
 
         # ── Phase 3: Build result data ──
@@ -509,6 +513,7 @@ class ProtocolRefiner:
         steps.append(Step(
             name="Generate proof hash",
             code=generate_proof_v2,
+            terminal=True,  # Linear path ends here; steps after this are branch-only
             doc="SHA-256 hash of inputs + result for audit trail",
         ))
 
