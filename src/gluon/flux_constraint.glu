@@ -1,40 +1,37 @@
-// FLUX Constraint Engine — Gluon (2016, Static-typed Functional Scripting)
-// Pure INT8 saturated constraint checking. Zero dependencies.
-//
-// The insight: Haskell's types, Python's ergonomics. Constraint checking
-// with type safety that doesn't get in your way. Type inference means
-// minimal annotations. Pattern matching covers every case.
-//
-// "Haskell's types, Python's ergonomics. Constraint checking with
-//  type safety that doesn't get in your way."
+-- FLUX Constraint Engine — Gluon (2016, Static-typed Functional Scripting)
+-- Pure INT8 saturated constraint checking. Zero dependencies.
+--
+-- The insight: Haskell's type safety with Python's ergonomics.
+-- Type inference means you write minimal annotations. Pattern matching
+-- means every case is handled. Record types give you structured results.
+-- Runs on the BEAM VM (Erlang) or as native code.
+--
+-- "Haskell's types, Python's ergonomics. Constraint checking with type
+--  safety that doesn't get in your way."
+--
+-- Usage:
+--   gluon -i flux_constraint.glu
+--   OR: gluonc flux_constraint.glu -o flux_constraint && ./flux_constraint
 
-// ── Constants ──────────────────────────────────────────────────────
+-- ══ Types ══════════════════════════════════════════════════════════
 
-let int8_min = -127
-let int8_max = 127
-let max_constraints = 8
+type Severity = Pass | Caution | Warning | Critical
 
-// ── Severity Type ───────────────────────────────────────────────────
+type Constraint = {
+    lo: Int,
+    hi: Int,
+    name: String,
+}
 
-type Severity = | Pass | Caution | Warning | Critical
-
-let severity_to_int sev = match sev with
-    | Pass -> 0
-    | Caution -> 1
-    | Warning -> 2
-    | Critical -> 3
-
-let severity_to_string sev = match sev with
-    | Pass -> "PASS"
-    | Caution -> "CAUTION"
-    | Warning -> "WARNING"
-    | Critical -> "CRITICAL"
-
-// ── Constraint Type ─────────────────────────────────────────────────
-
-type Constraint = { lo: Int, hi: Int, name: String }
-
-// ── FluxResult Type ─────────────────────────────────────────────────
+type ConstraintDetail = {
+    name: String,
+    lo: Int,
+    hi: Int,
+    value: Int,
+    passed: Bool,
+    lo_failed: Bool,
+    hi_failed: Bool,
+}
 
 type FluxResult = {
     error_mask: Int,
@@ -42,114 +39,194 @@ type FluxResult = {
     violated_lo: Int,
     violated_hi: Int,
     violated_count: Int,
-    passed: Bool
+    passed: Bool,
+    details: Array ConstraintDetail,
 }
 
-// ── Saturate ────────────────────────────────────────────────────────
+-- ══ Constants ══════════════════════════════════════════════════════
 
-let saturate val : Int -> Int =
+int8_min = -127
+int8_max = 127
+max_constraints = 8
+
+-- ══ Saturate ═══════════════════════════════════════════════════════
+
+saturate : Int -> Int
+saturate val =
     if val < int8_min then int8_min
     else if val > int8_max then int8_max
     else val
 
-// ── Severity Classification ─────────────────────────────────────────
+-- ══ Severity helpers ═══════════════════════════════════════════════
 
-let classify_severity violated_count total =
-    if violated_count == 0 then Pass
-    else if violated_count <= total / 4 then Caution
-    else if violated_count <= total / 2 then Warning
+severity_to_int : Severity -> Int
+severity_to_int sev = match sev with
+    Pass -> 0
+    | Caution -> 1
+    | Warning -> 2
+    | Critical -> 3
+
+severity_to_string : Severity -> String
+severity_to_string sev = match sev with
+    Pass -> "PASS"
+    | Caution -> "CAUTION"
+    | Warning -> "WARNING"
+    | Critical -> "CRITICAL"
+
+classify_severity : Int -> Int -> Severity
+classify_severity nc vc =
+    if vc == 0 then Pass
+    else if vc <= nc / 4 then Caution
+    else if vc <= nc / 2 then Warning
     else Critical
 
-// ── Check ───────────────────────────────────────────────────────────
-// Recursively walk the constraint list, accumulating the result.
+-- ══ Check implementation ═══════════════════════════════════════════
 
-let check constraints value : Array Constraint -> Int -> FluxResult =
-    let val = saturate value
-    let nc = Array.length constraints
-
-    let rec loop i em vlo vhi vc =
-        if i >= nc then (em, vlo, vhi, vc)
-        else
-            let c = constraints[i]
-            let lo = saturate c.lo
-            let hi = saturate c.hi
-            let lo_fail = val < lo
-            let hi_fail = val > hi
-            let bit = 1 << i
-            let new_em = if lo_fail || hi_fail then em || bit else em
-            let new_vlo = if lo_fail then vlo || bit else vlo
-            let new_vhi = if hi_fail then vhi || bit else vhi
-            let new_vc = if lo_fail || hi_fail then vc + 1 else vc
-            loop (i + 1) new_em new_vlo new_vhi new_vc
-
-    let (error_mask, violated_lo, violated_hi, violated_count) =
-        loop 0 0 0 0 0
-
+-- Helper: check a single constraint against a value
+check_one : Constraint -> Int -> ConstraintDetail
+check_one c val =
+    let lo_fail = val < saturate c.lo
+    let hi_fail = val > saturate c.hi
+    let passed = not lo_fail && not hi_fail
     {
-        error_mask,
-        severity = classify_severity violated_count nc,
-        violated_lo,
-        violated_hi,
-        violated_count,
-        passed = violated_count == 0
+        name = c.name,
+        lo = saturate c.lo,
+        hi = saturate c.hi,
+        value = val,
+        passed = passed,
+        lo_failed = lo_fail,
+        hi_failed = hi_fail,
     }
 
-// ── Batch Check ─────────────────────────────────────────────────────
+-- Helper: accumulate error mask from details
+compute_mask : Array ConstraintDetail -> Int -> Int -> Int
+compute_mask details i acc =
+    if i >= array_len details then acc
+    else
+        let d = array_index details i
+        let bit = if d.passed then 0 else 1
+        compute_mask details (i + 1) (acc + bit * (pow 2 i))
 
-let check_batch constraints values : Array Constraint -> Array Int -> Array FluxResult =
-    Array.map (check constraints) values
+-- Helper: accumulate lo violation mask
+compute_lo_mask : Array ConstraintDetail -> Int -> Int -> Int
+compute_lo_mask details i acc =
+    if i >= array_len details then acc
+    else
+        let d = array_index details i
+        let bit = if d.lo_failed then 1 else 0
+        compute_lo_mask details (i + 1) (acc + bit * (pow 2 i))
 
-// ── Create Checker (with validation) ────────────────────────────────
+-- Helper: accumulate hi violation mask
+compute_hi_mask : Array ConstraintDetail -> Int -> Int -> Int
+compute_hi_mask details i acc =
+    if i >= array_len details then acc
+    else
+        let d = array_index details i
+        let bit = if d.hi_failed then 1 else 0
+        compute_hi_mask details (i + 1) (acc + bit * (pow 2 i))
 
-type CheckerError = | EmptyConstraints | TooManyConstraints
+-- Helper: count violations
+count_violations : Array ConstraintDetail -> Int -> Int -> Int
+count_violations details i acc =
+    if i >= array_len details then acc
+    else
+        let d = array_index details i
+        count_violations details (i + 1) (if d.passed then acc else acc + 1)
 
-let make_checker constraints : Array Constraint -> Result (Array Constraint) CheckerError =
-    let nc = Array.length constraints
-    if nc == 0 then Err EmptyConstraints
-    else if nc > max_constraints then Err TooManyConstraints
-    else Ok constraints
+-- Helper: map constraints to details
+map_constraints : Array Constraint -> Int -> Int -> Array ConstraintDetail
+map_constraints constraints val i =
+    if i >= array_len constraints then array_empty
+    else
+        let c = array_index constraints i
+        let detail = check_one c val
+        let rest = map_constraints constraints val (i + 1)
+        array_push rest detail
 
-// ── Industry Presets ────────────────────────────────────────────────
+-- ══ Main check function ═══════════════════════════════════════════
 
-let aviation : Array Constraint = [
-    { lo = -55, hi = 70,  name = "cabin_temp_C" },
-    { lo = 75,  hi = 101, name = "cabin_pressure_kPa" },
-    { lo = 0,   hi = 100, name = "fuel_flow_pct" },
-    { lo = 60,  hi = 100, name = "hydraulic_pct" },
+check : Array Constraint -> Int -> FluxResult
+check constraints value =
+    let nc = array_len constraints
+    let val = saturate value
+    let details = map_constraints constraints val 0
+    let em = compute_mask details 0 0
+    let vlo = compute_lo_mask details 0 0
+    let vhi = compute_hi_mask details 0 0
+    let vc = count_violations details 0 0
+    let sev = classify_severity nc vc
+    {
+        error_mask = em,
+        severity = sev,
+        violated_lo = vlo,
+        violated_hi = vhi,
+        violated_count = vc,
+        passed = vc == 0,
+        details = details,
+    }
+
+-- ══ Batch check ════════════════════════════════════════════════════
+
+check_batch : Array Constraint -> Array Int -> Array FluxResult
+check_batch constraints values =
+    array_map (\value -> check constraints value) values
+
+-- ══ Industry Presets ═══════════════════════════════════════════════
+
+aviation : Array Constraint
+aviation = [
+    { lo = -55, hi = 70, name = "cabin_temp_C" },
+    { lo = 75, hi = 101, name = "cabin_pressure_kPa" },
+    { lo = 0, hi = 100, name = "fuel_flow_pct" },
+    { lo = 60, hi = 100, name = "hydraulic_pct" },
 ]
 
-let medical : Array Constraint = [
-    { lo = 36, hi = 38,  name = "body_temp_C" },
+medical : Array Constraint
+medical = [
+    { lo = 36, hi = 38, name = "body_temp_C" },
     { lo = 60, hi = 100, name = "heart_rate_bpm" },
     { lo = 95, hi = 100, name = "spo2_pct" },
     { lo = 80, hi = 120, name = "bp_systolic_mmHg" },
 ]
 
-let nuclear : Array Constraint = [
-    { lo = 0,  hi = 110, name = "neutron_flux_pct" },
-    { lo = 0,  hi = 65,  name = "core_temp_C_x10" },
+nuclear : Array Constraint
+nuclear = [
+    { lo = 0, hi = 110, name = "neutron_flux_pct" },
+    { lo = 0, hi = 65, name = "core_temp_C_x10" },
     { lo = 72, hi = 100, name = "pressurizer_pct" },
-    { lo = 0,  hi = 100, name = "coolant_flow_pct" },
+    { lo = 0, hi = 100, name = "coolant_flow_pct" },
 ]
 
-// ── Usage Example ───────────────────────────────────────────────────
-//
-//   let r = check aviation 60
-//   print (severity_to_string r.severity)  // "CAUTION"
-//   print r.passed                          // false
-//   print r.error_mask                      // 1
-//
-//   // Batch check
-//   let results = check_batch aviation [-60, 0, 25, 70, 127]
-//   // results: array of FluxResult, one per value
-//
-//   // Type inference: minimal annotations needed
-//   let r2 = check nuclear 50
-//   // Gluon infers the types. No explicit signatures required.
-//
-//   // Pattern matching covers every case
-//   match r.severity with
-//       | Pass -> "All clear"
-//       | Caution -> "Watch out"
-//       | Warning -> "Take action"
-//       | Critical -> "SHUTDOWN"
+automotive : Array Constraint
+automotive = [
+    { lo = -40, hi = 60, name = "battery_temp_C" },
+    { lo = 0, hi = 100, name = "soc_pct" },
+    { lo = 0, hi = 100, name = "charge_rate_pct" },
+    { lo = 20, hi = 80, name = "cabin_temp_C" },
+]
+
+-- ══ Demo ═══════════════════════════════════════════════════════════
+
+io.println "═══ FLUX Constraint Engine — Gluon ═══"
+
+let r1 = check aviation 60
+io.println ("  Aviation val=60: " ++ severity_to_string r1.severity ++
+            " mask=0x" ++ int_to_string r1.error_mask ++
+            " passed=" ++ bool_to_string r1.passed)
+
+let r2 = check aviation 25
+io.println ("  Aviation val=25: " ++ severity_to_string r2.severity ++
+            " passed=" ++ bool_to_string r2.passed)
+
+let r3 = check medical 37
+io.println ("  Medical val=37: " ++ severity_to_string r3.severity ++
+            " passed=" ++ bool_to_string r3.passed)
+
+let r4 = check nuclear 80
+io.println ("  Nuclear val=80: " ++ severity_to_string r4.severity ++
+            " mask=0x" ++ int_to_string r4.error_mask ++
+            " passed=" ++ bool_to_string r4.passed)
+
+-- Batch test
+let batch = check_batch aviation [-60, 0, 25, 70, 90, 127]
+io.println ("\n  Batch: " ++ int_to_string (array_len batch) ++ " results")

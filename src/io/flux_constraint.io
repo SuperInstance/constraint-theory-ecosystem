@@ -1,196 +1,290 @@
 // FLUX Constraint Engine — Io (2002, Prototype-based OOP)
 // Pure INT8 saturated constraint checking. Zero dependencies.
 //
-// The insight: no classes, only prototypes and delegation.
-// Constraint checkers are cloned and customized.
-// The delegation chain IS the constraint hierarchy.
-// Everything is a slot — even methods. Introspection is free.
+// The insight: no classes, only prototypes. Constraint checkers are cloned
+// and customized. Delegation chain IS the constraint hierarchy.
+// A nuclear checker can clone an aviation checker and ADD more constraints.
+// Introspection is free — every slot is queryable at runtime.
 //
-// "No classes. Only prototypes and delegation. Clone a checker,
-//  customize it. The prototype chain IS the constraint hierarchy."
+// "No classes. Only prototypes and delegation. Clone a checker, customize it.
+//  The prototype chain IS the constraint hierarchy."
+//
+// Usage:
+//   io flux_constraint.io
 
-// ── Constants ──────────────────────────────────────────────────────
+// ══ Constants ════════════════════════════════════════════════════════
 
 INT8_MIN := -127
 INT8_MAX := 127
 MAX_CONSTRAINTS := 8
 
-// ── Base Prototype ─────────────────────────────────────────────────
-// FluxConstraint is the root prototype. All checkers clone from this.
+// ══ Severity ════════════════════════════════════════════════════════
 
-FluxConstraint := Object clone
+Severity := Object clone
+Severity levels := list("PASS", "CAUTION", "WARNING", "CRITICAL")
 
-FluxConstraint constraints := list()
+// ══ ConstraintDetail ════════════════════════════════════════════════
 
-// Saturate: clamp to INT8 range
-FluxConstraint saturate := method(val,
-    if(val < INT8_MIN, INT8_MIN,
-        if(val > INT8_MAX, INT8_MAX, val)
+ConstraintDetail := Object clone
+ConstraintDetail name := ""
+ConstraintDetail lo := 0
+ConstraintDetail hi := 0
+ConstraintDetail value := 0
+ConstraintDetail passed := true
+ConstraintDetail loFailed := false
+ConstraintDetail hiFailed := false
+
+// ══ FluxResult ══════════════════════════════════════════════════════
+
+FluxResult := Object clone
+FluxResult errorMask := 0
+FluxResult severity := 0
+FluxResult severityName := "PASS"
+FluxResult violatedLo := 0
+FluxResult violatedHi := 0
+FluxResult violatedCount := 0
+FluxResult passed := true
+FluxResult details := list()
+
+FluxResult println := method(
+  "  severity=" .. severityName .. " mask=0x" .. errorMask asHex .. 
+  " violated=" .. violatedCount asString .. " passed=" .. passed asString
+  println
+)
+
+// ══ Constraint ══════════════════════════════════════════════════════
+
+Constraint := Object clone
+Constraint lo := 0
+Constraint hi := 0
+Constraint name := ""
+
+Constraint saturate := method(val,
+  if(val < INT8_MIN, INT8_MIN,
+    if(val > INT8_MAX, INT8_MAX, val)
+  )
+)
+
+Constraint init := method(
+  lo = 0
+  hi = 0
+  name = ""
+  self
+)
+
+Constraint with := method(loVal, hiVal, nameStr,
+  c := self clone
+  c lo = self saturate(loVal)
+  c hi = self saturate(hiVal)
+  c name = nameStr
+  c
+)
+
+// ══ FluxChecker ═════════════════════════════════════════════════════
+
+FluxChecker := Object clone
+FluxChecker constraints := list()
+
+FluxChecker saturate := method(val,
+  if(val < INT8_MIN, INT8_MIN,
+    if(val > INT8_MAX, INT8_MAX, val)
+  )
+)
+
+FluxChecker addConstraint := method(loVal, hiVal, nameStr,
+  c := Constraint with(loVal, hiVal, nameStr)
+  constraints append(c)
+  self
+)
+
+FluxChecker check := method(value,
+  val := self saturate(value)
+  nc := constraints size
+  
+  if(nc == 0,
+    Exception raise("No constraints defined")
+  )
+  if(nc > MAX_CONSTRAINTS,
+    Exception raise("Max 8 constraints")
+  )
+  
+  result := FluxResult clone
+  em := 0
+  vlo := 0
+  vhi := 0
+  vc := 0
+  detailList := list()
+  
+  constraints foreach(i, c,
+    loFail := val < c lo
+    hiFail := val > c hi
+    passed := (not loFail) and (not hiFail)
+    
+    if(not passed,
+      em = em + (2 ** i)
+      vc = vc + 1
     )
-)
-
-// Add a constraint: {lo, hi, name}
-FluxConstraint addConstraint := method(lo, hi, name,
-    if(constraints size >= MAX_CONSTRAINTS,
-        Exception raise("Maximum 8 constraints (INT8 x8 flat bounds)")
+    if(loFail,
+      vlo = vlo + (2 ** i)
     )
-    constraints append(list(saturate(lo), saturate(hi), name))
-    self
-)
-
-// Severity classification from violation count
-FluxConstraint classifySeverity := method(violatedCount, totalConstraints,
-    if(violatedCount == 0, "PASS",
-        if(violatedCount <= (totalConstraints / 4), "CAUTION",
-            if(violatedCount <= (totalConstraints / 2), "WARNING",
-                "CRITICAL"
-            )
-        )
+    if(hiFail,
+      vhi = vhi + (2 ** i)
     )
-)
-
-// Check a single value against all constraints
-FluxConstraint check := method(value,
-    val := saturate(value)
-    errorMask := 0
-    violatedLo := 0
-    violatedHi := 0
-    violatedCount := 0
-    nc := constraints size
-
-    constraints foreach(i, c,
-        lo := c at(0)
-        hi := c at(1)
-        // name := c at(2)
-        loFail := val < lo
-        hiFail := val > hi
-        bit := 2 ** i
-
-        if(loFail or hiFail,
-            errorMask = errorMask + bit
-            violatedCount = violatedCount + 1
-        )
-        if(loFail, violatedLo = violatedLo + bit)
-        if(hiFail, violatedHi = violatedHi + bit)
+    
+    d := ConstraintDetail clone
+    d name = c name
+    d lo = c lo
+    d hi = c hi
+    d value = val
+    d passed = passed
+    d loFailed = loFail
+    d hiFailed = hiFail
+    detailList append(d)
+  )
+  
+  // Classify severity
+  sevName := if(vc == 0, "PASS",
+    if(vc <= (nc / 4), "CAUTION",
+      if(vc <= (nc / 2), "WARNING", "CRITICAL"
+      )
     )
-
-    severity := classifySeverity(violatedCount, nc)
-
-    dict := Map clone
-    dict atPut("error_mask", errorMask)
-    dict atPut("severity", severity)
-    dict atPut("violated_lo", violatedLo)
-    dict atPut("violated_hi", violatedHi)
-    dict atPut("violated_count", violatedCount)
-    dict atPut("passed", violatedCount == 0)
-    dict atPut("value", val)
-    dict
+  )
+  sevLevel := if(vc == 0, 0,
+    if(vc <= (nc / 4), 1,
+      if(vc <= (nc / 2), 2, 3)
+    )
+  )
+  
+  result errorMask = em
+  result severity = sevLevel
+  result severityName = sevName
+  result violatedLo = vlo
+  result violatedHi = vhi
+  result violatedCount = vc
+  result passed = (vc == 0)
+  result details = detailList
+  result
 )
 
-// Batch check: returns list of result maps
-FluxConstraint checkBatch := method(values,
-    values map(v, self check(v))
+FluxChecker checkBatch := method(values,
+  results := list()
+  values foreach(v,
+    results append(self check(v))
+  )
+  results
 )
 
-// Pretty-print a result
-FluxConstraint printResult := method(result,
-    mark := if(result at("passed"), "✓", "✗")
-    writeln("  #{mark} val=#{result at("value")} sev=#{result at("severity")} mask=0x#{result at("error_mask") toBase(16)}")
+// ══ Industry Presets ════════════════════════════════════════════════
+
+FluxChecker aviation := method(
+  fc := FluxChecker clone
+  fc addConstraint(-55, 70, "cabin_temp_C")
+  fc addConstraint(75, 101, "cabin_pressure_kPa")
+  fc addConstraint(0, 100, "fuel_flow_pct")
+  fc addConstraint(60, 100, "hydraulic_pct")
+  fc
 )
 
-// ── Industry Presets as Clones ──────────────────────────────────────
-// Each preset clones FluxConstraint and customizes its constraints.
-// Further specialization clones the preset (delegation chain).
+FluxChecker medical := method(
+  fc := FluxChecker clone
+  fc addConstraint(36, 38, "body_temp_C")
+  fc addConstraint(60, 100, "heart_rate_bpm")
+  fc addConstraint(95, 100, "spo2_pct")
+  fc addConstraint(80, 120, "bp_systolic_mmHg")
+  fc
+)
 
-// Aviation: flight-critical bounds
-aviation := FluxConstraint clone
-aviation addConstraint(-55, 70, "cabin_temp_C")
-aviation addConstraint(75, 101, "cabin_pressure_kPa")
-aviation addConstraint(0, 100, "fuel_flow_pct")
-aviation addConstraint(60, 100, "hydraulic_pct")
+FluxChecker nuclear := method(
+  fc := FluxChecker clone
+  fc addConstraint(0, 110, "neutron_flux_pct")
+  fc addConstraint(0, 65, "core_temp_C_x10")
+  fc addConstraint(72, 100, "pressurizer_pct")
+  fc addConstraint(0, 100, "coolant_flow_pct")
+  fc
+)
 
-// Medical: patient monitoring
-medical := FluxConstraint clone
-medical addConstraint(36, 38, "body_temp_C")
-medical addConstraint(60, 100, "heart_rate_bpm")
-medical addConstraint(95, 100, "spo2_pct")
-medical addConstraint(80, 120, "bp_systolic_mmHg")
+FluxChecker automotive := method(
+  fc := FluxChecker clone
+  fc addConstraint(-40, 60, "battery_temp_C")
+  fc addConstraint(0, 100, "soc_pct")
+  fc addConstraint(0, 100, "charge_rate_pct")
+  fc addConstraint(20, 80, "cabin_temp_C")
+  fc
+)
 
-// Nuclear: reactor safety — clones aviation (delegation) and adds constraints
-// Demonstrates prototype chain: nuclear inherits aviation's slots
-nuclear := FluxConstraint clone
-nuclear addConstraint(0, 110, "neutron_flux_pct")
-nuclear addConstraint(0, 65, "core_temp_C_x10")
-nuclear addConstraint(72, 100, "pressurizer_pct")
-nuclear addConstraint(0, 100, "coolant_flow_pct")
+FluxChecker maritime := method(
+  fc := FluxChecker clone
+  fc addConstraint(-2, 35, "sea_temp_C")
+  fc addConstraint(50, 100, "hull_integrity_pct")
+  fc addConstraint(0, 50, "wave_height_m")
+  fc addConstraint(0, 80, "wind_speed_kn")
+  fc
+)
 
-// Robotics: inherits from base
-robotics := FluxConstraint clone
-robotics addConstraint(-100, 100, "joint_torque_pct")
-robotics addConstraint(0, 100, "speed_pct")
-robotics addConstraint(0, 100, "force_pct")
-robotics addConstraint(-127, 127, "position_mm")
+// ══ Delegation example ═════════════════════════════════════════════
+// Clone aviation and ADD radiation monitoring for high-altitude flights
 
-// ── Delegation Example ──────────────────────────────────────────────
-// Clone a preset and EXTEND it. The clone delegates unknown messages
-// to its parent. This IS the constraint hierarchy.
+HighAltChecker := FluxChecker aviation
+HighAltChecker addConstraint(0, 50, "radiation_mSv_h")
+// Now has 5 constraints: aviation 4 + radiation 1
 
-// A stricter nuclear variant that also monitors aviation parameters
-// (demonstrates prototype delegation chain)
-nuclearAviation := aviation clone
-nuclearAviation constraints = aviation constraints clone
-// Add nuclear-specific constraints on top of aviation
-nuclearAviation addConstraint(0, 110, "neutron_flux_pct")
-nuclearAviation addConstraint(0, 65, "core_temp_C_x10")
+// ══ Main ════════════════════════════════════════════════════════════
 
-// ── Usage Example ───────────────────────────────────────────────────
-//
-//   // Clone and customize
-//   myChecker := FluxConstraint clone
-//   myChecker addConstraint(-20, 60, "battery_temp_C")
-//   myChecker addConstraint(0, 100, "soc_pct")
-//
-//   result := myChecker check(70)
-//   result at("severity")    // "CAUTION"
-//   result at("passed")      // false
-//   result at("error_mask")  // 1
-//
-//   // Use a preset
-//   result := aviation check(60)
-//   aviation printResult(result)
-//
-//   // Delegation: nuclearAviation inherits aviation's check method
-//   result := nuclearAviation check(60)
-//
-//   // Introspection: everything is a slot
-//   FluxConstraint slotSummary  // lists all methods and data
-//   aviation slotSummary        // shows inherited + own slots
+"═══ FLUX Constraint Engine — Io (Prototype-based) ═══" println
+"" println
 
-// ── Run Demo ────────────────────────────────────────────────────────
+// Aviation tests
+fc := FluxChecker aviation
+"Aviation preset: 4 constraints" println
 
-"╔══════════════════════════════════════════════════════╗" println
-"║  FLUX Constraint Engine — Io (Prototype-based OOP)  ║" println
-"╚══════════════════════════════════════════════════════╝" println
+r := fc check(60)
+"  val=60: " print .. r println
+
+r := fc check(25)
+"  val=25: " print .. r println
+
+r := fc check(-60)
+"  val=-60: " print .. r println
 
 "" println
-"Aviation preset (4 constraints):" println
-aviation constraints foreach(i, c,
-    "  #{c at(2)}: [#{c at(0)}, #{c at(1)}]" interpolate println
+
+// Medical tests
+med := FluxChecker medical
+"Medical preset: 4 constraints" println
+
+r := med check(37)
+"  val=37: " print .. r println
+
+r := med check(42)
+"  val=42: " print .. r println
+
+"" println
+
+// Nuclear tests
+nuc := FluxChecker nuclear
+"Nuclear preset: 4 constraints" println
+
+r := nuc check(80)
+"  val=80: " print .. r println
+
+"" println
+
+// Delegation: high-altitude checker
+"High-altitude checker (aviation + radiation):" println
+r := HighAltChecker check(60)
+"  val=60: " print .. r println
+
+"" println
+
+// Batch test
+"Batch test (aviation, 6 values):" println
+results := fc checkBatch(list(-60, 0, 25, 70, 90, 127))
+results foreach(i, r,
+  "  [" .. i asString .. "] " .. r severityName .. " passed=" .. r passed asString println
 )
 
 "" println
-"Checking values:" println
-list(-60, 0, 25, 70, 90, 127) foreach(v,
-    result := aviation check(v)
-    aviation printResult(result)
-)
 
-"" println
-"Nuclear preset:" println
-result := nuclear check(50)
-nuclear printResult(result)
-
-"" println
-"Prototype chain (nuclearAviation inherits aviation):" println
-"  aviation has #{aviation constraints size} constraints" println
-"  nuclearAviation has #{nuclearAviation constraints size} constraints" println
+// Introspection: show all slots on a checker
+"FluxChecker slots:" println
+fc slotSummary println
