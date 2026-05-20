@@ -2,7 +2,7 @@
 
 Research into exact numeric bounds checking — the math, the implementations, and the connections to other fields.
 
-96 language implementations. 31 research modules. Real hardware numbers.
+96 language implementations. 31 research modules. Hardware benchmarks below.
 
 ---
 
