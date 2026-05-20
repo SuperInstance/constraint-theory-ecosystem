@@ -6,6 +6,18 @@ Research into exact numeric bounds checking — the math, the implementations, a
 
 ---
 
+## Background: The Math Under the Hood
+
+Some of our repos mention **Eisenstein integers** and **hex arithmetic**. Here's what that means.
+
+Eisenstein integers are complex numbers of the form `a + bω` where `ω = e^(2πi/3)` — a primitive cube root of unity. They form a **hexagonal lattice** in the complex plane (triangular tiling, not the square grid you get from Gaussian integers `a + bi`). That's where the "hex" comes from: hexagonal, not hexadecimal.
+
+Why does this matter? The hexagonal lattice has nicer algebraic properties for certain decompositions — it's a Euclidean domain (so you get unique factorization) and the hex grid packs more efficiently than a square grid. When you're compressing constraint-checking operations into integer arithmetic, the lattice structure determines how clean the math is.
+
+**You do not need to understand any of this to use the libraries.** The five-minute tour below works without knowing what an Eisenstein integer is. This background is for people who want to understand *why* the internals look the way they do.
+
+---
+
 ## The Problem
 
 Software checks numeric bounds wrong. Not because the code is buggy, but because floating-point arithmetic lies:
