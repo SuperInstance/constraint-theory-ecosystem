@@ -133,7 +133,7 @@ class TestActuarialChecker:
             Constraint("positive", lambda v: v > 0),
         ])
         for i in range(10):
-            ac.register_source(f"s{i}", pool="sensors")
+            ac.register_source(f"s{i}", pool_id="sensors")
         return ac
 
     def test_create_pool(self):
@@ -144,13 +144,13 @@ class TestActuarialChecker:
     def test_register_source(self):
         ac = ActuarialChecker()
         ac.create_pool("sensors")
-        premium = ac.register_source("s1", pool="sensors")
+        premium = ac.register_source("s1", pool_id="sensors")
         assert premium.source_id == "s1"
 
     def test_register_unknown_pool_raises(self):
         ac = ActuarialChecker()
         with pytest.raises(ValueError):
-            ac.register_source("s1", pool="nonexistent")
+            ac.register_source("s1", pool_id="nonexistent")
 
     def test_check_pass(self):
         ac = self._make_checker()
@@ -177,8 +177,8 @@ class TestActuarialChecker:
         ac.create_pool("sensors", constraints=[
             Constraint("range", lambda v: 0 <= v <= 100),
         ])
-        ac.register_source("good_sensor", pool="sensors")
-        ac.register_source("bad_sensor", pool="sensors")
+        ac.register_source("good_sensor", pool_id="sensors")
+        ac.register_source("bad_sensor", pool_id="sensors")
 
         # Feed violations to bad_sensor, passes to good_sensor
         for _ in range(50):

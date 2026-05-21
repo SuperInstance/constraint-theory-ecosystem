@@ -191,11 +191,11 @@ class GammaPoissonModel:
 
         if z_score < -1.645:
             return RiskTier.LOW
-        elif z_score <= 1.0:
+        elif z_score <= 1.5:
             return RiskTier.STANDARD
-        elif z_score <= 2.0:
+        elif z_score <= 5.0:
             return RiskTier.ELEVATED
-        elif z_score <= 3.0:
+        elif z_score <= 10.0:
             return RiskTier.HIGH
         else:
             return RiskTier.CRITICAL
