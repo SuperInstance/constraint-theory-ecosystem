@@ -8,6 +8,22 @@
 
 **Software engineers.** Rust, CUDA, C, Python, PHP. If you care about correctness over cleverness, we need you.
 
+## Repository Structure
+
+```
+constraint-theory-ecosystem/
+├── constraints/       # 248 constraints across 10 industries
+├── chapters/          # Full textbook (10 chapters)
+├── docs/              # Technical deep dives
+├── tutorials/         # Hands-on guides (5 tutorials, working code)
+├── examples/          # Complete applications (aerospace, medical, fleet)
+├── experiments/       # GPU benchmarks and results
+├── proofs/            # Coq proof certificates
+├── src/               # 98 language implementations
+├── benchmarks/        # Performance benchmarks
+└── tests/             # Test suite
+```
+
 ## How to Contribute
 
 ### Add a Constraint Example

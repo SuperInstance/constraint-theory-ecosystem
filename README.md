@@ -1,91 +1,180 @@
 # Constraint Theory Ecosystem
 
-## What is constraint theory?
+**Replace floating-point guesswork with provably correct constraint checks.**
 
-You have a system of equations. You need exactly enough constraints for a unique solution. Not too few — that's underconstrained, and the system drifts. Not too many — that's overconstrained, and you get conflicts. The math tells you the exact number.
+Constraint theory treats every variable in your system as a dimension in a geometric space. Each constraint (`battery_temp ∈ [15, 55]`) carves out a valid region. If the intersection is non-empty, a solution exists — and you know at *design time*, not in production. No probabilities. No NaN. Just: in spec or out of spec.
 
-Think about an O-ring seal. The gland depth constrains the O-ring's compression. If the squeeze is between 15% and 25%, you get a seal. Too loose (10%) and fluid leaks. Too tight (30%) and the ring extrudes through the gap. The constraint *is the spec*, and the math tells you whether you meet it — yes or no, not "probably."
+This repo provides the full toolchain: a constraint DSL (GUARD), a terminating bytecode VM (FLUX-C), machine-checked proofs (Coq), GPU-accelerated checking (CUDA), and 248 real-world constraints across 10 industries.
 
-This is what hardware engineers do every day. Tolerance stacks, interference fits, pressure ratings — all constraint checks. The answer is always binary: in spec or out of spec. No probabilities.
+---
 
-Software doesn't work this way. Software writes `float x` and hopes.
+## The 7 Key Results
 
-## The floating point problem
+| # | Result | Proof |
+|---|--------|-------|
+| 1 | **Laman rigidity** — E = 2V − 3 edges for exact structural rigidity | [`proofs/english/laman-rigidity.md`](proofs/english/laman-rigidity.md) |
+| 2 | **GUARD DSL** — Exact bounds with zero rounding, compiles to verifiable bytecode | [`chapters/ch02-guard-dsl.md`](chapters/ch02-guard-dsl.md) |
+| 3 | **FLUX-C VM** — 43 opcodes, termination guaranteed by construction (no infinite loops possible) | [`chapters/ch03-flux-c-bytecode.md`](chapters/ch03-flux-c-bytecode.md) |
+| 4 | **Coq proof chain** — Machine-checked certificates auditors can verify independently | [`proofs/COQ-PROOF-INVENTORY.md`](proofs/COQ-PROOF-INVENTORY.md) |
+| 5 | **ZHC consensus** — 38ms fleet-wide agreement, mathematically guaranteed | [`chapters/ch06-fleet-math.md`](chapters/ch06-fleet-math.md) |
+| 6 | **Pythagorean48 encoding** — Zero-drift INT8 representation for 85% of industry constraints | [`docs/EXACT-ARITHMETIC-ANALYSIS.md`](docs/EXACT-ARITHMETIC-ANALYSIS.md) |
+| 7 | **62.2B constraints/sec** — RTX 4050 sustained throughput with zero mismatches across 60M inputs | [`experiments/RESULTS.md`](experiments/RESULTS.md) |
 
-```python
->>> 0.1 + 0.2 == 0.3
-False
-```
+---
 
-Floating point arithmetic is approximate by design. That's fine for graphics, dangerous for safety-critical systems. When `battery_temp` drifts by 0.001°C due to rounding, you don't know if you're inside or outside the safe operating range.
+## Quick Start
 
-Constraint theory replaces "approximately correct" with "provably correct or provably wrong."
-
-## The key equation
-
-```
-E = 2V − 3
-```
-
-This is Laman's theorem (1970). For V vertices in a 2D structure, you need exactly 2V−3 edges for rigidity. Think of a bridge truss: too few beams and it flexes. Too many and internal stresses build up. Exactly 2V−3 and it's rigid — it cannot deform without a beam breaking.
-
-Applied to software: V agents in a fleet need exactly 2V−3 trust relationships. Too few and they drift silently. Too many and sub-coalitions form unpredictably. Exactly right and the fleet is provably consistent.
-
-## What's actually happening?
-
-Constraint theory treats every variable in your system as a dimension in a geometric space. Each constraint (`battery_temp ∈ [15, 55]`) carves out a valid region. If the intersection of all regions is non-empty, a solution exists. If it's empty, no solution is possible — and you find out at *design time*, not in production.
-
-The approach works because it's geometric, not statistical. You're not estimating probabilities. You're checking whether a point falls inside a polytope. The answer is exact.
-
-## What this repository contains
-
-| Layer | What it does |
-|-------|-------------|
-| **GUARD DSL** | Write constraints like `battery_temp ∈ [15, 55]` — a domain-specific language for exact bounds |
-| **FLUX-C bytecode** | 43-opcode virtual machine that *cannot loop forever* (termination guaranteed by construction) |
-| **Coq proofs** | Machine-checked proof certificates that auditors can verify independently |
-| **Fleet math** | ZHC consensus (38ms), H¹ emergence detection, Pythagorean48 zero-drift encoding |
-| **Industry guides** | DO-254, ISO 26262, IEC 61508 — mapping constraint checks to safety standards |
-
-## Quick example
+### Install
 
 ```bash
-# Write a constraint
-echo 'battery_temp in [15, 55] °C with priority HIGH' > battery.guard
-
-# Compile and generate a proof certificate
-guard compile battery.guard --output battery.fbc --proof battery.v
+git clone https://github.com/SuperInstance/constraint-theory-ecosystem.git
+cd constraint-theory-ecosystem
+pip install -r src/python/requirements.txt   # Python bindings
 ```
 
-The compiler doesn't just check your constraint — it produces a machine-verifiable proof that the check is correct. An auditor can verify `battery.v` without trusting your toolchain.
+### Write your first constraint (5 minutes)
 
-## Contrast with floating point
+```bash
+# Create a GUARD constraint file
+cat > battery.guard << 'EOF'
+constraint battery_safety {
+    battery_temp in [15.0, 55.0] degC
+        with priority HIGH
+        with category SAFETY
+    battery_voltage in [2.8, 4.2] V
+        with priority CRITICAL
+        with category OPERATIONAL
+}
+EOF
 
-| Property | Floating point | Constraint theory |
-|----------|---------------|-------------------|
-| Result | Approximately correct | Provably correct or provably wrong |
-| Failure mode | Silent (NaN, drift, wrap) | Loud (violation at design time) |
-| Example | `0.1 + 0.2 ≠ 0.3` | `battery_temp ∈ [15, 55]` ✓ or ✗ |
-| Audit trail | None | Coq proof certificate |
+# Compile to FLUX-C bytecode (with proof certificate)
+guard compile battery.guard --output battery.fbc --proof battery_proof.v
 
-## Chapters
+# Check a value
+guard check battery.fbc --value battery_temp=45.2
+# ✓ PASS: battery_temp = 45.2 degC ∈ [15.0, 55.0]
 
-The `chapters/` directory contains a full textbook:
+guard check battery.fbc --value battery_temp=60.0
+# ✗ FAIL: battery_temp = 60.0 degC ∉ [15.0, 55.0]
+```
 
-- **Ch 0** — The Constraint Mindset (you're already doing this)
-- **Ch 1** — Why Software Gets Constraints Wrong (floating point is the problem)
-- **Ch 2** — GUARD DSL (the language for exact constraints)
-- **Ch 3** — FLUX-C Bytecode (43 opcodes, termination guaranteed)
-- **Ch 4** — Formal Verification (Coq proof chain)
-- **Ch 5** — Safety-Critical Applications (DO-254, ISO 26262, IEC 61508)
-- **Ch 6** — Fleet Math (ZHC, H¹, Pythagorean48)
-- **Ch 7** — Getting Started (install, write, certify)
-- **Ch 8** — GPU Architecture (62 billion checks/sec on a $300 GPU)
+### Python API
 
-## Why does this work?
+```python
+from constraint_theory import GuardCompiler, FluxChecker
 
-Because constraints are geometry, and geometry is exact. When you write `x ∈ [a, b]`, you're not approximating — you're defining a region in space. Either a point is inside it or it isn't. No rounding, no drift, no "approximately." The Coq proofs make this machine-checkable: the theorem prover verifies that your constraints are satisfiable, that the check covers all cases, and that the compiled bytecode faithfully implements the check.
+# Compile and check in code
+compiler = GuardCompiler()
+checker = FluxChecker(compiler.compile("battery.guard"))
+
+assert checker.check("battery_temp", 45.2) == True
+assert checker.check("battery_temp", 60.0) == False
+
+# Batch check 10M values on GPU
+results = checker.check_batch_gpu(
+    sensor="battery_temp",
+    values=measurements,  # numpy array, 10M elements
+    expected_throughput="62B c/s"
+)
+```
+
+→ **Full tutorial:** [`tutorials/01-first-constraint.md`](tutorials/01-first-constraint.md)
+
+---
+
+## Architecture: GUARD → FLUX-C → CUDA
+
+```
+┌─────────────┐     ┌─────────────┐     ┌──────────────────┐     ┌───────────┐
+│  GUARD DSL  │────▶│  FLUX-C VM  │────▶│  CUDA Kernel v2  │────▶│  Coq Proof│
+│  (.guard)   │     │  (.fbc)     │     │  (10M×8: 62B c/s)│     │  (.v)     │
+└─────────────┘     └─────────────┘     └──────────────────┘     └───────────┘
+   Human writes        Compiler           GPU checks 10M          Auditable
+   exact bounds        guarantees         values in 1 pass        certificate
+                       termination
+```
+
+1. **GUARD** — You write constraints in a readable DSL: `battery_temp in [15, 55] degC`
+2. **FLUX-C** — Compiler produces 43-opcode bytecode; termination is guaranteed by construction (no loops, no recursion)
+3. **CUDA Kernel v2** — Batch constraint checking at 62.2B constraints/sec on consumer hardware
+4. **Coq Proof** — Every compiled constraint comes with a machine-checkable proof certificate
+
+---
+
+## Cross-Language Support
+
+98 language implementations in `src/`. Core bindings:
+
+| Language | Status | Location | Notes |
+|----------|--------|----------|-------|
+| **Python** | ✅ Production | [`src/python/`](src/python/) | Primary API, GPU bindings |
+| **Rust** | ✅ Production | [`src/rust/`](src/rust/) | Zero-cost abstractions |
+| **C** | ✅ Production | [`src/c/`](src/c/) | Embedded-friendly |
+| **C++** | ✅ Production | [`src/cpp/`](src/cpp/) | Industry interop |
+| **CUDA** | ✅ Production | [`src/cuda/`](src/cuda/) | 62.2B c/s kernel |
+| **Zig** | ✅ Complete | [`src/zig/`](src/zig/) | Comptime checks |
+| **Go** | ✅ Complete | [`src/go/`](src/go/) | Service integration |
+| **JavaScript** | ✅ Complete | [`src/js/`](src/js/) | Web/Node.js |
+| **Haskell** | ✅ Complete | [`src/haskell/`](src/haskell/) | Type-level proofs |
+| **Lean** | ✅ Complete | [`src/lean/`](src/lean/) | Formal verification |
+
+[Full list of 98 languages →](docs/monorepo-map.md)
+
+---
+
+## Industry Coverage
+
+10 industries, 248 constraints, 85% INT8-compatible:
+
+| Industry | Constraints | Standard | File |
+|----------|------------|----------|------|
+| Aerospace | 25 | DO-254 | [`constraints/aviation.md`](constraints/aviation.md) |
+| Automotive | 28 | ISO 26262 | [`constraints/automotive.md`](constraints/automotive.md) |
+| Medical | 22 | IEC 62304 | [`constraints/medical.md`](constraints/medical.md) |
+| Nuclear | 30 | IEC 61508 | [`constraints/nuclear.md`](constraints/nuclear.md) |
+| Railway | 18 | EN 50128 | [`constraints/railway.md`](constraints/railway.md) |
+| Maritime | 24 | IACS | [`constraints/maritime.md`](constraints/maritime.md) |
+| Energy | 35 | IEEE 1547 | [`constraints/energy.md`](constraints/energy.md) |
+| Robotics | 25 | ISO 10218 | [`constraints/robotics.md`](constraints/robotics.md) |
+| Space | 28 | ECSS-E-ST-10C | [`constraints/space.md`](constraints/space.md) |
+| Autonomous Underwater | 13 | IMCA | [`constraints/autonomous-underwater.md`](constraints/autonomous-underwater.md) |
+
+---
+
+## Experiment Results
+
+All benchmarks run on real hardware (RTX 4050 Laptop, WSL2). No simulation.
+
+| Benchmark | Throughput | Notes |
+|-----------|-----------|-------|
+| Production Kernel v2 | **62.2 B c/s** | 10M × 8c, INT8 saturated |
+| CUDA Graph replay | 9,500 B c/s | Kernel replay speedup |
+| Streaming incremental (0.1% change) | 77.3× faster than full sweep | Real-time sensor feeds |
+| Temporal constraints (window=4) | 44.1 B c/s | Rate-of-change + deadband |
+| Multivariate cross-sensor | 14.8 B c/s | AND/OR combinations |
+| Differential correctness | **ZERO mismatches** | 60M inputs verified |
+
+→ [`experiments/RESULTS.md`](experiments/RESULTS.md) for full data
+
+---
+
+## Documentation
+
+- **[QUICKSTART.md](QUICKSTART.md)** — 15-minute setup guide
+- **[COOKBOOK.md](COOKBOOK.md)** — 40+ constraint recipes
+- **[SPEC.md](SPEC.md)** — GUARD/FLUX-C language specification
+- **[chapters/](chapters/)** — Full textbook (10 chapters, constraint theory from first principles)
+- **[docs/](docs/)** — Technical deep dives (category theory, thermodynamics, topology of constraint spaces)
+- **[tutorials/](tutorials/)** — Hands-on guides with working code
+
+---
+
+## Contributing
+
+We want your domain expertise. Physical engineers, safety engineers, software engineers — if you've ever specified a tolerance, you already think in constraints.
+
+→ [`CONTRIBUTING.md`](CONTRIBUTING.md) for guidelines
 
 ## License
 
-MIT
+MIT — see [`LICENSE`](LICENSE)
